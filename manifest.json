@@ -1,0 +1,11 @@
+[
+  {
+    "name": "Vinyl Mini Player",
+    "description": "A custom always-on-top mini player with a spinning vinyl, live synced lyrics, a reorderable queue and glass / minimal themes.",
+    "preview": "preview.png",
+    "main": "vinyl-mini-player.js",
+    "readme": "README.md",
+    "authors": [{ "name": "uxwy", "url": "https://github.com/uxwy" }],
+    "tags": ["mini player", "lyrics", "vinyl", "queue", "glass"]
+  }
+]
