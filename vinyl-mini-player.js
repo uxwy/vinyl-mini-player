@@ -1,6 +1,8 @@
 (function vinylMiniPlayer() {
   "use strict";
 
+  const VERSION = "1.2.0";
+
   if (window.__vmp && typeof window.__vmp.cleanup === "function") window.__vmp.cleanup();
 
   function waitForSpicetify() {
@@ -14,8 +16,14 @@
     const SETTINGS_KEY = "vinyl-mini-player:settings";
     let saved = {};
     try { saved = JSON.parse(Spicetify.LocalStorage.get(SETTINGS_KEY) || "{}"); } catch (_) {}
-    const settings = { performance: false, replaceNative: true, theme: "classic", bigVinyl: false, rpm: "slow",
-      tonearm: false, scrollStep: 5, queueSize: 10, blur: 35, tintMode: "auto", tintColor: "#6a7cff", tintStrength: 60, lyrics: true, lyricsSource: "auto", lyricOffset: 0, spicyKey: "", autoHide: true, ...saved };
+    const settings = {
+      rippleStrength: 60, performance: false, replaceNative: true, theme: "classic", rpm: "slow",
+      scrollStep: 5, queueSize: 10, blur: 35, tintMode: "auto", tintColor: "#6a7cff", tintStrength: 60,
+      lyrics: true, lyricsSource: "auto", spicyKey: "", autoHide: true, lyricStyle: "default",
+      bgMotion: true, trackFx: true, titleMarquee: true, ...saved
+    };
+    settings.rpm = "slow";
+
     const WIN_KEY = "vinyl-mini-player:window";
     let winState = null;
     try { winState = JSON.parse(Spicetify.LocalStorage.get(WIN_KEY) || "null"); } catch (_) {}
@@ -43,7 +51,7 @@
       likeOn: '<circle cx="12" cy="12" r="10" fill="currentColor"/><path d="M7.5 12.3l3 3 6-6.3" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
       likeOff: '<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 8v8M8 12h8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
       close: '<path d="M6.4 5L5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6z"/>',
-      grip: '<path d="M9 5h2v2H9zm4 0h2v2h-2zM9 11h2v2H9zm4 0h2v2h-2zM9 17h2v2H9zm4 0h2v2h-2z"/>',
+      grip: '<path d="M9 5h2v2H9zm4 0h2v2H9zm4 0h2v2h-2zM9 11h2v2H9zm4 0h2v2H9zm4 0h2v2h-2zM9 17h2v2H9zm4 0h2v2H9zm4 0h2v2H9z"/>',
       up: '<path d="M12 5l7 8h-4.5v6h-5v-6H5z"/>'
     };
     const svg = (name, size) => `<svg viewBox="0 0 24 24"${size ? ` width="${size}" height="${size}"` : ""}>${ICONS[name]}</svg>`;
@@ -56,7 +64,7 @@ html,body{margin:0;height:100%}
 .vmp-root.has-queue{justify-content:flex-start}
 .vmp-bar{position:relative;flex:none;height:var(--bar-h,100%);display:flex;align-items:center;gap:1.2rem;padding:0 .8rem 0 1rem;cursor:grab}
 
-.vmp-disc{position:relative;flex:none;width:5.6rem;height:5.6rem}
+.vmp-disc{position:relative;flex:none;width:5.6rem;height:5.6rem;transition:width .4s cubic-bezier(0.25,1,0.5,1), height .4s cubic-bezier(0.25,1,0.5,1)}
 .vmp-vinyl{position:absolute;inset:0;border-radius:50%;overflow:hidden;background:#111;
   box-shadow:0 0 0 1px #000,0 .3rem 1rem rgba(0,0,0,.45);will-change:transform}
 .vmp-cover{display:block;width:100%;height:100%;object-fit:cover;transition:opacity .25s ease}
@@ -67,33 +75,36 @@ html,body{margin:0;height:100%}
 .vmp-hole{position:absolute;left:50%;top:50%;width:9%;height:9%;transform:translate(-50%,-50%);
   border-radius:50%;background:var(--spice-main,#121212);box-shadow:0 0 0 .15rem #1b1b1b;pointer-events:none}
 
-.vmp-meta{flex:1 1 0;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:.3rem}
-.vmp-title{font-size:1.4rem;font-weight:600;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.vmp-artist{font-size:1.1rem;letter-spacing:.05em;text-transform:uppercase;color:var(--spice-subtext,#b3b3b3);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vmp-meta{flex:1 1 0;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:2px;overflow:hidden;position:relative}
+.vmp-title{font-size:1.3rem;font-weight:600;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block!important}
+.vmp-artist{font-size:1rem;letter-spacing:.05em;text-transform:uppercase;color:var(--spice-subtext,#b3b3b3);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block!important}
 
 @property --p{syntax:"<percentage>";inherits:false;initial-value:0%}
-.vmp-lyric{--lt:var(--spice-text,#fff);--ld:rgba(255,255,255,.4);--ld:color-mix(in srgb,var(--spice-text,#fff) 40%,transparent);
-  display:block;max-height:0;margin-top:-.3rem;opacity:0;font-size:1.2rem;line-height:1.3;font-weight:600;letter-spacing:-.005em;
-  white-space:nowrap;overflow:hidden;color:var(--lt);--ml:0px;--mr:0px;
+.vmp-lyric{--lt:var(--spice-text,#fff);--ld:rgba(255,255,255,.4);
+  display:block;max-height:0;margin-top:0;opacity:0;font-size:1.1rem;line-height:1.2;font-weight:600;letter-spacing:-.005em;
+  white-space:nowrap;overflow:hidden;color:var(--lt);--ml:2px;--mr:2px;
   -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 var(--ml),#000 calc(100% - var(--mr)),transparent 100%);
   mask-image:linear-gradient(90deg,transparent 0,#000 var(--ml),#000 calc(100% - var(--mr)),transparent 100%);
-  transition:max-height .5s cubic-bezier(.22,.61,.36,1),margin-top .5s cubic-bezier(.22,.61,.36,1),opacity .5s ease}
-.vmp-root.has-lyrics .vmp-lyric{max-height:1.8rem;margin-top:0;opacity:1}
+  transition:max-height .5s cubic-bezier(0.25,1,0.5,1),opacity .5s ease}
+.vmp-root.has-lyrics .vmp-lyric{max-height:1.4rem;opacity:1}
 .vmp-lyric span{display:inline-block;transform:translateX(var(--sx,0px));background:linear-gradient(90deg,var(--lt) 0%,var(--lt) calc(var(--p) - 5%),var(--ld) calc(var(--p) + 5%),var(--ld) 100%);
-  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;transition:--p .3s linear,transform .3s linear}
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  transition:--p 0.12s linear, transform 0.35s cubic-bezier(0.25,1,0.5,1); will-change: transform, --p;}
 .vmp-root.is-perf .vmp-lyric span{background:none;-webkit-text-fill-color:currentColor}
-.vmp-credit{display:block;max-height:0;opacity:0;font-size:.85rem;line-height:1.3;letter-spacing:.02em;white-space:nowrap;overflow:hidden;
+
+.vmp-credit{display:block;max-height:0;opacity:0;font-size:.75rem;line-height:1.1;letter-spacing:.02em;white-space:nowrap;overflow:hidden;
   text-overflow:ellipsis;color:var(--spice-subtext,#b3b3b3);transition:max-height .5s ease,opacity .5s ease}
-.vmp-root.has-lyrics .vmp-credit.on{max-height:1.2rem;opacity:.6}
+.vmp-root.has-lyrics .vmp-credit.on{max-height:.9rem;opacity:.6}
 .vmp-credit a{color:inherit;text-decoration:none;border-bottom:1px solid rgba(255,255,255,.25)}
 .vmp-credit a:hover{color:var(--spice-text,#fff)}
 .vmp-root.stack .vmp-lyric{font-size:1.4rem;max-width:100%}
 .vmp-root.stack.has-lyrics .vmp-lyric{max-height:2rem}
 
 .vmp-ctrls{flex:none;display:flex;align-items:center;gap:.4rem;transition:opacity .35s ease}
-.vmp-root.autohide .vmp-ctrls{opacity:0}
-.vmp-root.autohide.hover .vmp-ctrls,.vmp-root.autohide.peek .vmp-ctrls,.vmp-root.autohide.q-open .vmp-ctrls,.vmp-root.autohide:focus-within .vmp-ctrls{opacity:1}
+.vmp-root.autohide .vmp-ctrls{opacity:0;pointer-events:none}
+.vmp-root.autohide:not(.is-playing) .vmp-ctrls,.vmp-root.autohide.hover .vmp-ctrls,.vmp-root.autohide.peek .vmp-ctrls,
+.vmp-root.autohide.q-open .vmp-ctrls,.vmp-root.autohide:focus-within .vmp-ctrls{opacity:1;pointer-events:auto}
 .vmp-btn{appearance:none;background:none;border:none;outline:none;padding:0;margin:0;color:var(--spice-subtext,#b3b3b3);
   cursor:pointer;width:3.2rem;height:3.2rem;display:grid;place-items:center;border-radius:50%;
   transition:transform .25s cubic-bezier(.25,1,.5,1),color .3s ease,background-color .3s ease}
@@ -102,6 +113,11 @@ html,body{margin:0;height:100%}
 .vmp-btn:active{transform:scale(.94)}
 .vmp-btn:focus-visible{box-shadow:0 0 0 .2rem var(--spice-button,#1db954)}
 .vmp-btn.vmp-active{color:var(--spice-button,#1ed760)}
+.vmp-shuffle{position:relative}
+.vmp-shuffle::after{content:"";position:absolute;bottom:.32rem;left:50%;width:.4rem;height:.4rem;border-radius:50%;
+  background:currentColor;opacity:0;transform:translateX(-50%) scale(.25);pointer-events:none;
+  transition:opacity .2s cubic-bezier(.25,1,.5,1),transform .24s cubic-bezier(.34,1.56,.64,1)}
+.vmp-shuffle.vmp-active::after{opacity:1;transform:translateX(-50%) scale(1)}
 .vmp-btn.vmp-like:hover{color:var(--spice-button,#1ed760)}
 .vmp-btn.vmp-play{position:relative;width:4rem;height:4rem;margin:0 .2rem;background:#fff;color:#000}
 .vmp-btn.vmp-play:hover{transform:scale(1.04);color:#000}
@@ -125,25 +141,28 @@ html,body{margin:0;height:100%}
 .vmp-bar-fill{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--spice-button,#1ed760)}
 
 .vmp-queue{flex:1 1 auto;min-height:0;display:none;flex-direction:column;border-top:1px solid rgba(128,128,128,.25);
-  opacity:0;transform:translateY(-.8rem);transition:opacity .3s ease,transform .3s ease}
+  opacity:0;transform:translateY(-.5rem);transition:opacity .45s cubic-bezier(0.25,1,0.5,1),transform .45s cubic-bezier(0.25,1,0.5,1)}
 .vmp-root.has-queue .vmp-queue{display:flex}
 .vmp-root.q-open .vmp-queue{opacity:1;transform:none}
-.vmp-qhead{flex:none;display:flex;align-items:center;justify-content:space-between;padding:.8rem 1.4rem .4rem;
+.vmp-qhead{flex:none;display:flex;align-items:center;justify-content:space-between;gap:.8rem;padding:.8rem 1.4rem .4rem;
   font-size:1.2rem;font-weight:700;color:var(--spice-subtext,#b3b3b3);letter-spacing:.04em;text-transform:uppercase}
-.vmp-qhint{font-weight:400;text-transform:none;letter-spacing:0;opacity:.8}
+.vmp-qhint{flex:1 1 0;min-width:0;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:400;text-transform:none;letter-spacing:0;opacity:.8}
+.vmp-qshuffle{flex:none;width:2.8rem;height:2.8rem}
+.vmp-qshuffle svg{width:1.7rem;height:1.7rem}
+.vmp-btn:disabled{opacity:.35;pointer-events:none}
 .vmp-qlist{position:relative;flex:1 1 auto;min-height:0;overflow-y:auto;padding:.4rem .6rem .8rem;scrollbar-width:thin}
 .vmp-qrow{position:relative;display:flex;align-items:center;gap:1rem;padding:.5rem .8rem;border-radius:.8rem;cursor:pointer;
   transition:background-color .15s ease,box-shadow .2s ease}
 .vmp-qrow:hover{background:rgba(128,128,128,.18)}
-.vmp-qrow.enter{animation:vmp-in .4s cubic-bezier(.22,.61,.36,1) backwards;animation-delay:calc(var(--i,0) * 28ms)}
-@keyframes vmp-in{from{opacity:0;transform:translateY(.8rem)}to{opacity:1;transform:none}}
+.vmp-qrow.enter{animation:vmp-in .55s cubic-bezier(0.25,1,0.5,1) backwards;animation-delay:calc(var(--i,0) * 36ms)}
+@keyframes vmp-in{from{opacity:0;transform:translateY(.5rem)}to{opacity:1;transform:none}}
 .vmp-qlist.sorting,.vmp-qlist.sorting *{cursor:grabbing!important}
-.vmp-qlist.sorting .vmp-qrow{transition:transform .32s cubic-bezier(.25,.8,.25,1),background-color .15s ease;will-change:transform}
+.vmp-qlist.sorting .vmp-qrow{transition:transform .32s cubic-bezier(0.25,1,0.5,1),background-color .15s ease;will-change:transform}
 .vmp-qlist.sorting .vmp-qrow:hover{background:none}
-.vmp-qlist.sorting .vmp-qrow.is-drag{z-index:3;background:var(--spice-card,#2a2a2a);
+.vmp-qlist.sorting .vmp-qrow.is-drag{z-index:3;background:color-mix(in srgb,var(--spice-main,#121212) 78%,var(--spice-text,#fff) 22%);
   box-shadow:0 .8rem 2.2rem rgba(0,0,0,.5),0 0 0 1px rgba(128,128,128,.25);
   transition:box-shadow .2s ease,background-color .2s ease}
-.vmp-qlist.sorting .vmp-qrow.is-drag.settle{transition:transform .26s cubic-bezier(.25,.8,.25,1),box-shadow .26s ease,background-color .26s ease}
+.vmp-qlist.sorting .vmp-qrow.is-drag.settle{transition:transform .26s cubic-bezier(0.25,1,0.5,1),box-shadow .26s ease,background-color .26s ease}
 .vmp-grip{flex:none;width:1.6rem;height:1.6rem;fill:var(--spice-subtext,#b3b3b3);opacity:.5;cursor:grab;transition:opacity .15s ease}
 .vmp-qrow:hover .vmp-grip,.vmp-qrow.is-drag .vmp-grip{opacity:1}
 .vmp-qrow img{flex:none;width:3.6rem;height:3.6rem;border-radius:.4rem;object-fit:cover;background:rgba(128,128,128,.25)}
@@ -164,31 +183,29 @@ html,body{margin:0;height:100%}
 .vmp-root.card{padding:1rem}
 .vmp-root.card .vmp-bar{border-radius:1.8rem;background:rgba(128,128,128,.12);border:1px solid rgba(128,128,128,.28)}
 .vmp-root.card .vmp-disc{width:4.4rem;height:4.4rem}
-.vmp-root.card.big .vmp-disc{width:7.4rem;height:7.4rem;margin:-1.5rem 0 -1.5rem -1.7rem}
 .vmp-root.card .vmp-progress{left:1.8rem;right:1.8rem;bottom:.6rem;border-radius:99px;overflow:hidden}
 .vmp-disc{z-index:1}
-.vmp-root.card.big:not(.stack) .vmp-progress{left:6.6rem}
 .vmp-root.card .vmp-queue{margin-top:.8rem;border:1px solid rgba(128,128,128,.28);border-radius:1.8rem;overflow:hidden;background:rgba(128,128,128,.12)}
 
-.vmp-root.stack .vmp-bar{flex-direction:column;justify-content:center;gap:1.2rem;padding:2.4rem 2rem 2.8rem;text-align:center}
-.vmp-root.stack .vmp-disc,.vmp-root.stack.card .vmp-disc,.vmp-root.stack.card.big .vmp-disc{width:19rem;height:19rem;margin:0}
-.vmp-root.stack .vmp-meta{flex:none;width:100%;align-items:center}
-.vmp-root.stack .vmp-title{font-size:1.8rem;max-width:100%}
-.vmp-root.stack .vmp-artist{font-size:1.2rem;max-width:100%}
-.vmp-root.stack .vmp-ctrls{gap:.2rem}
+.vmp-root.stack .vmp-bar{flex-direction:column;justify-content:center;align-items:center;gap:1rem;padding:1.5rem 1.5rem 2rem;text-align:center}
+.vmp-root.stack .vmp-disc,.vmp-root.stack.card .vmp-disc{width:clamp(10rem, 45vh, 14rem);height:clamp(10rem, 45vh, 14rem);margin:0 auto}
+.vmp-root.stack .vmp-meta{flex:none;width:100%;align-items:center;text-align:center}
+.vmp-root.stack .vmp-title{font-size:1.6rem;max-width:100%}
+.vmp-root.stack .vmp-artist{font-size:1.1rem;max-width:100%}
+.vmp-root.stack .vmp-ctrls{gap:.2rem;justify-content:center}
 .vmp-root.stack .vmp-btn.vmp-close{position:absolute;top:.6rem;right:.6rem;margin:0}
-.vmp-root.stack.card .vmp-progress{left:2.4rem;right:2.4rem;bottom:1.2rem}
-
-.vmp-arm{display:none;position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:2}
-.vmp-root.has-arm .vmp-arm{display:block}
-.vmp-arm-g{transform-origin:108px 8px;transform:rotate(-35deg);transition:transform 1s cubic-bezier(.34,1.3,.64,1)}
-.vmp-root.is-playing .vmp-arm-g{transform:rotate(0deg)}
+.vmp-root.stack.card .vmp-progress{left:2rem;right:2rem;bottom:1rem}
 
 @property --aura-a{syntax:"<color>";inherits:true;initial-value:rgb(44,50,84)}
 @property --aura-b{syntax:"<color>";inherits:true;initial-value:rgb(24,26,42)}
-.vmp-aura{display:none;position:absolute;inset:0;pointer-events:none;opacity:var(--tint,.6);
-  background:radial-gradient(120% 170% at 0% 0%,var(--aura-a) 0%,transparent 64%),radial-gradient(120% 170% at 100% 100%,var(--aura-b) 0%,transparent 64%);
+.vmp-aura{display:none;position:absolute;inset:0;pointer-events:none;opacity:var(--tint,.7);
+  background:radial-gradient(circle at 20% 20%, var(--aura-a) 0%, transparent 50%),
+             radial-gradient(circle at 80% 80%, var(--aura-b) 0%, transparent 50%),
+             radial-gradient(circle at 50% 50%, rgba(255,255,255,0.08) 0%, transparent 70%);
+  animation:vmp-breathe 10s ease-in-out infinite alternate;
   transition:--aura-a 1.4s ease,--aura-b 1.4s ease,opacity .4s ease}
+@keyframes vmp-breathe{from{transform:scale(1);opacity:calc(var(--tint,.7) * 0.85)}to{transform:scale(1.08);opacity:calc(var(--tint,.7) * 1.15)}}
+
 .vmp-rim{display:none;position:absolute;inset:0;pointer-events:none;z-index:4;border-radius:0;
   box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),inset 0 1px 1px rgba(255,255,255,.25)}
 .vmp-root.theme-glass{padding:0;border-radius:0;background:#0b0b0f;--spice-text:#fff;--spice-subtext:rgba(255,255,255,.65);
@@ -200,10 +217,7 @@ html,body{margin:0;height:100%}
 .vmp-root.theme-glass .vmp-artist{letter-spacing:.06em}
 .vmp-root.theme-glass .vmp-hole{background:#14141a}
 .vmp-root.theme-glass:not(.stack) .vmp-disc{width:5.6rem;height:5.6rem;margin:0}
-.vmp-root.theme-glass.big:not(.stack) .vmp-disc{width:7.6rem;height:7.6rem;margin:0 0 0 -1.8rem}
-.vmp-root.theme-glass:not(.stack) .vmp-progress{left:0;right:0;bottom:0;border-radius:0}
-.vmp-root.theme-glass.big:not(.stack) .vmp-progress{left:7rem}
-.vmp-root.stack.theme-glass .vmp-progress{left:0;right:0;bottom:0;border-radius:0}
+.vmp-root.theme-glass:not(.stack) .vmp-progress,.vmp-root.stack.theme-glass .vmp-progress{left:0;right:0;bottom:0;border-radius:0}
 .vmp-root.theme-glass .vmp-queue{margin:.2rem .8rem .8rem;border:none;border-radius:2.2rem;overflow:hidden;
   background:rgba(255,255,255,.07);
   backdrop-filter:blur(var(--blur,35px)) saturate(190%);-webkit-backdrop-filter:blur(var(--blur,35px)) saturate(190%);
@@ -213,23 +227,128 @@ html,body{margin:0;height:100%}
 .vmp-root.is-perf.theme-glass .vmp-bar{background:none;backdrop-filter:none;-webkit-backdrop-filter:none}
 .vmp-root.is-perf.theme-glass .vmp-queue{background:rgba(32,32,38,.92);backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:none}
 
-.vmp-root.theme-mini{background:#0a0a0b;--spice-text:#f4f4f5;--spice-subtext:#85858b;--spice-button:#f4f4f5;
+.vmp-root.theme-mini{padding:0;border-radius:0;background:#000;--spice-text:#f4f4f5;--spice-subtext:#85858b;--spice-button:#f4f4f5;
   font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter","Segoe UI",var(--vmp-font,sans-serif)}
 .vmp-root.theme-mini .vmp-aura{display:none}
-.vmp-root.theme-mini .vmp-rim{box-shadow:inset 0 0 0 1px rgba(255,255,255,.07)}
-.vmp-root.theme-mini .vmp-bar{background:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+.vmp-root.theme-mini .vmp-rim{display:block;box-shadow:inset 0 0 0 1px rgba(255,255,255,.07)}
+.vmp-root.theme-mini .vmp-bar{background:none;border:none;border-radius:0;backdrop-filter:none;-webkit-backdrop-filter:none}
 .vmp-root.theme-mini .vmp-title{font-weight:600;letter-spacing:-.005em}
 .vmp-root.theme-mini .vmp-artist{font-size:1rem;letter-spacing:.12em}
-.vmp-root.theme-mini .vmp-hole{background:#0a0a0b}
+.vmp-root.theme-mini .vmp-hole{background:#000}
 .vmp-root.theme-mini .vmp-btn:hover{background:rgba(255,255,255,.07)}
-.vmp-root.theme-mini .vmp-btn.vmp-play{background:#f4f4f5;color:#0a0a0b}
-.vmp-root.theme-mini .vmp-progress{height:max(2px,.2rem);background:rgba(255,255,255,.07)}
+.vmp-root.theme-mini .vmp-btn.vmp-play{background:#f4f4f5;color:#000}
+.vmp-root.theme-mini .vmp-progress{left:0;right:0;bottom:0;border-radius:0;height:max(2px,.2rem);background:rgba(255,255,255,.07)}
 .vmp-root.theme-mini .vmp-progress:hover{height:max(4px,.5rem)}
 .vmp-root.theme-mini .vmp-lyric{--ld:rgba(255,255,255,.26)}
-.vmp-root.theme-mini .vmp-queue{margin:.2rem .8rem .8rem;border-radius:1.2rem;background:#121214;backdrop-filter:none;-webkit-backdrop-filter:none;
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)}
-.vmp-root.is-perf.theme-mini{background:#0a0a0b}
-.vmp-root.is-perf.theme-mini .vmp-queue{background:#121214}
+.vmp-root.theme-mini .vmp-queue{margin:.2rem .8rem .8rem;border:none;border-radius:1.2rem;background:#000;backdrop-filter:none;-webkit-backdrop-filter:none;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)}
+.vmp-root.is-perf.theme-mini{background:#000}
+.vmp-root.is-perf.theme-mini .vmp-queue{background:#000}
+
+.vmp-bgimg{display:none;position:absolute;inset:-12%;width:124%;height:124%;object-fit:cover;pointer-events:none;
+  opacity:0;transition:opacity .7s ease}
+.vmp-root.theme-liquid .vmp-bgimg{display:block;filter:url(#vmp-f-ripple) brightness(var(--lq-dim)) saturate(1.25) contrast(1.05)}
+.vmp-root.theme-liquid.no-ripple .vmp-bgimg{filter:brightness(var(--lq-dim)) saturate(1.25) contrast(1.05)}
+.vmp-root.theme-liquid{
+  padding:0;border-radius:0;
+  --lq-dim:.45;
+  --lq-text:#ffffff;
+  --lq-subtext:rgba(255,255,255,0.75);
+  --spice-text:var(--lq-text);--spice-subtext:var(--lq-subtext);
+  background:#06070a}
+.vmp-root.theme-liquid .vmp-aura{display:none}
+.vmp-root.theme-liquid .vmp-rim{display:block;box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)}
+.vmp-root.theme-liquid .vmp-bar{border:none;border-radius:0;background:linear-gradient(rgba(6,7,10,.2),rgba(6,7,10,.5));backdrop-filter:none;-webkit-backdrop-filter:none}
+.vmp-root.theme-liquid .vmp-vinyl{box-shadow:0 0 0 1px rgba(255,255,255,.1),0 1rem 2.4rem rgba(0,0,0,.6)}
+.vmp-root.theme-liquid .vmp-hole{background:#06070a}
+.vmp-root.theme-liquid .vmp-title{font-weight:650;letter-spacing:-.01em;text-shadow:0 1px 10px rgba(0,0,0,.45)}
+.vmp-root.theme-liquid .vmp-artist{text-transform:none;letter-spacing:0;font-weight:500;font-size:1.15rem;text-shadow:0 1px 8px rgba(0,0,0,.45)}
+.vmp-root.theme-liquid .vmp-lyric{--ld:rgba(255,255,255,.32)}
+.vmp-root.theme-liquid .vmp-btn{background:none;box-shadow:none;color:var(--lq-subtext);
+  transition:transform .4s cubic-bezier(.34,1.56,.64,1),color .25s ease}
+.vmp-root.theme-liquid .vmp-btn:hover{background:none;color:var(--lq-text);transform:scale(1.22)}
+.vmp-root.theme-liquid .vmp-btn:active{transform:scale(.9);transition-duration:.12s}
+.vmp-root.theme-liquid .vmp-btn.vmp-active{color:var(--lq-text)}
+.vmp-root.theme-liquid .vmp-btn.vmp-play,.vmp-root.theme-liquid .vmp-btn.vmp-play:hover{background:none;color:var(--lq-text);
+  box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.7)}
+.vmp-root.theme-liquid .vmp-btn.vmp-play:hover{transform:scale(1.14);box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.95)}
+.vmp-root.theme-liquid .vmp-btn.vmp-close{transition:opacity .2s ease,transform .4s cubic-bezier(.34,1.56,.64,1),color .25s ease}
+.vmp-root.theme-liquid .vmp-btn.vmp-close:hover{background:none;transform:rotate(90deg) scale(1.2)}
+.vmp-root.theme-liquid .vmp-btn:focus-visible{box-shadow:0 0 0 .15rem rgba(255,255,255,.35)}
+.vmp-root.theme-liquid .vmp-progress{left:0;right:0;bottom:0;border-radius:0;height:max(2px,.3rem);background:rgba(255,255,255,.14);transition:height .3s cubic-bezier(.34,1.56,.64,1)}
+.vmp-root.theme-liquid .vmp-progress:hover{height:max(4px,.6rem)}
+.vmp-root.theme-liquid .vmp-bar-fill{background:var(--lq-text)}
+.vmp-root.theme-liquid .vmp-queue{border:none;border-radius:2.2rem;background:rgba(6,7,10,.55);box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+.vmp-root.theme-liquid .vmp-qlist:not(.sorting) .vmp-qrow{transition:transform .4s cubic-bezier(.34,1.56,.64,1),background-color .2s ease}
+.vmp-root.theme-liquid .vmp-qlist:not(.sorting) .vmp-qrow:hover{background:rgba(255,255,255,.06);transform:scale(1.025)}
+.vmp-root.theme-liquid .vmp-credit a{border-bottom-color:rgba(255,255,255,.2)}
+.vmp-root.is-perf .vmp-bgimg{display:none!important}
+.vmp-root.is-perf.theme-liquid{background:#0e0e12}
+
+.vmp-lyric.rtl{direction:rtl}
+.vmp-lyric.rtl span{background:linear-gradient(270deg,var(--lt) 0%,var(--lt) calc(var(--p) - 5%),var(--ld) calc(var(--p) + 5%),var(--ld) 100%);
+  -webkit-background-clip:text;background-clip:text}
+
+.vmp-root .vmp-lyrics-stack{
+  --lh: 1.4rem;
+  display: none;
+  position: relative;
+  height: 0;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+  opacity: 0;
+  --ml: 2px;
+  --mr: 2px;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 var(--ml), #000 calc(100% - var(--mr)), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 var(--ml), #000 calc(100% - var(--mr)), transparent 100%);
+  transition: height .5s cubic-bezier(0.25, 1, 0.5, 1), opacity .5s ease;
+}
+.vmp-root.lyr-stack .vmp-lyric{display:none!important}
+.vmp-root.lyr-stack .vmp-lyrics-stack{display:block!important}
+.vmp-root.lyr-stack.has-lyrics .vmp-lyrics-stack{
+  height: calc(var(--lh) * 3) !important;
+  opacity: 1 !important;
+}
+
+.vmp-root .lyric-line{
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max-content;
+  max-width: none;
+  height: var(--lh);
+  line-height: var(--lh);
+  font-size: 1.05rem;
+  font-weight: 500;
+  white-space: nowrap;
+  text-align: center;
+  transform-origin: center center;
+  transform: translate(calc(-50% + var(--sx, 0px)), calc(-50% + (var(--pos, 0) * var(--lh)))) scale(0.92);
+  color: rgba(255, 255, 255, 0.35);
+  filter: blur(1.5px);
+  opacity: 0.45;
+  will-change: transform, filter, opacity;
+  transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1), filter 0.5s cubic-bezier(0.25, 1, 0.5, 1), color 0.4s ease, opacity 0.4s ease;
+}
+.vmp-root .lyric-line[dir="rtl"]{transform-origin: center center}
+.vmp-root.stack .lyric-line{font-size: 1.4rem}
+.vmp-root .lyric-line.prev,.vmp-root .lyric-line.next{opacity: 0.5; filter: blur(1.5px)}
+.vmp-root .lyric-line.active{
+  color: #ffffff;
+  font-weight: 700;
+  opacity: 1;
+  filter: blur(0px);
+  transform: translate(calc(-50% + var(--sx, 0px)), calc(-50% + (var(--pos, 0) * var(--lh)))) scale(1.04);
+}
+.vmp-root .lyric-line.snap{transition: none}
+
+.vmp-root .vmp-title.marq{-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 7%,#000 93%,transparent 100%);
+  mask-image:linear-gradient(90deg,transparent 0,#000 7%,#000 93%,transparent 100%)}
+
+.vmp-bgwrap{position:absolute;inset:0;pointer-events:none}
+@keyframes vmp-drift{from{transform:translate3d(-4%,-3%,0) scale(1.08) rotate(-1deg)}to{transform:translate3d(4%,3%,0) scale(1.2) rotate(1deg)}}
+.vmp-root.theme-liquid.bg-motion .vmp-bgwrap{animation:vmp-drift 28s cubic-bezier(0.37,0,0.63,1) infinite alternate;will-change:transform}
 
 .vmp-root.is-perf .vmp-vinyl{animation:none;box-shadow:none}
 .vmp-root.is-perf .vmp-grooves,.vmp-root.is-perf .vmp-shine{display:none}
@@ -237,6 +356,13 @@ html,body{margin:0;height:100%}
 `;
 
     const TEMPLATE = `
+<svg class="vmp-defs" width="0" height="0" aria-hidden="true" style="position:absolute"><defs>
+  <filter id="vmp-f-ripple" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+    <feTurbulence type="fractalNoise" baseFrequency="0.012 0.02" numOctaves="2" seed="3" result="n"/>
+    <feDisplacementMap id="vmp-d-ripple" in="SourceGraphic" in2="n" scale="60" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+</defs></svg>
+<div class="vmp-bgwrap"><img class="vmp-bgimg" alt=""></div>
 <div class="vmp-aura"></div>
 <div class="vmp-rim"></div>
 <div class="vmp-bar">
@@ -244,16 +370,12 @@ html,body{margin:0;height:100%}
     <div class="vmp-vinyl"><img class="vmp-cover" alt=""><div class="vmp-grooves"></div></div>
     <div class="vmp-shine"></div>
     <div class="vmp-hole"></div>
-    <svg class="vmp-arm" viewBox="0 0 100 100" aria-hidden="true"><g class="vmp-arm-g">
-      <line x1="108" y1="8" x2="70" y2="50" stroke="#e2e2e2" stroke-width="3.2" stroke-linecap="round"/>
-      <rect x="64" y="47" width="12" height="6" rx="2" fill="#cfcfcf" transform="rotate(132 70 50)"/>
-      <circle cx="108" cy="8" r="7" fill="#9a9a9a" stroke="#222" stroke-width="1.5"/>
-    </g></svg>
   </div>
   <div class="vmp-meta">
     <div class="vmp-title"><span></span></div>
     <div class="vmp-artist"><span></span></div>
     <div class="vmp-lyric"><span></span></div>
+    <div class="vmp-lyrics-stack"></div>
     <div class="vmp-credit"></div>
   </div>
   <div class="vmp-ctrls">
@@ -268,7 +390,7 @@ html,body{margin:0;height:100%}
   <div class="vmp-progress"><div class="vmp-bar-fill"></div></div>
 </div>
 <div class="vmp-queue">
-  <div class="vmp-qhead"><span>Next up</span><span class="vmp-qhint">Drag to reorder · click to play now</span></div>
+  <div class="vmp-qhead"><span>Next up</span><span class="vmp-qhint">Drag to reorder · click to play now</span><button class="vmp-btn vmp-qshuffle" data-act="qshuffle" aria-label="Reshuffle the queue" title="Reshuffle the queue">${svg("shuffle")}</button></div>
   <div class="vmp-qlist"></div>
 </div>
 <div class="vmp-toast"></div>`;
@@ -281,12 +403,16 @@ html,body{margin:0;height:100%}
     let qHome = null, qShift = null, winDragging = false;
     let skipDir = 1, skipTimer = null;
     let sort = null, suppressClick = false;
-    let curStack = false, layoutSig = null;
+    let curStack = false;
     let lastPlaying = null, spinAnim = null, spinRate = 0, spinTarget = 0, spinRaf = 0, spinLast = 0;
     let auraToken = 0, auraKey = "", tickWin = null;
     let metaHover = false, lyr = null, lyrIdx = -1, lyrToken = 0, lyricTimer = null, marqueeAnims = [];
-    let lyrAnim = null, lyrSwapping = false;
+    let lyrAnim = null, lyrSwapping = false, lyrPending = "";
+    let lyrRtl = false, lyrBW = 0, lyrTW = 0, lyrMeasKey = "", lyrStackAnim = null, lyrStyleSeen = null;
+    const lyrEls = new Map();
+    let swapping = false, swapId = 0, pendingTrack = null, titleAnim = null, marqT = 0, lockSize = null, guardUntil = 0, lockTimer = 0;
     const lyricCache = new Map();
+    const paletteCache = new Map();
 
     const $ = sel => root.querySelector(sel);
     const mk = (tag, cls, text) => {
@@ -304,6 +430,18 @@ html,body{margin:0;height:100%}
         { duration: 480, easing: "cubic-bezier(.22,.61,.36,1)" });
     };
 
+    function applyRipple(force = false) {
+      if (!root || !els || !els.dispRipple || !els.bgimg) return;
+      const v = String(Math.max(0, Math.round(Number(settings.rippleStrength) || 0)));
+      const changed = els.dispRipple.getAttribute("scale") !== v;
+      if (!changed && !force) return;
+      if (changed) els.dispRipple.setAttribute("scale", v);
+      const st = els.bgimg.style;
+      st.filter = "none";
+      void els.bgimg.offsetWidth;
+      st.filter = "";
+    }
+
     function layout() {
       if (!win || !root) return;
       const w = win.innerWidth || BAR_W;
@@ -313,25 +451,27 @@ html,body{margin:0;height:100%}
       const aspect = w / baseBarH;
       const stack = curStack ? aspect < 1.85 : aspect < 1.5;
       const mini = settings.theme === "minimal";
-      const glass = settings.theme === "tinted" || mini;
-      const big = !!settings.bigVinyl;
-      const card = glass || big;
-      const sig = [stack, glass, mini, big].join();
-      const animate = layoutSig !== null && sig !== layoutSig && !settings.performance;
-      const targets = animate ? [els.disc, els.meta, els.ctrls] : [];
-      const first = targets.map(t => t.getBoundingClientRect());
+      const liquid = settings.theme === "liquid";
+      const glass = settings.theme === "tinted" || liquid;
+      const card = glass;
 
       curStack = stack;
-      layoutSig = sig;
+      doc.documentElement.style.background = mini ? "#000" : liquid ? "#06070a" : glass ? "#0b0b0f" : "";
       scale = stack
         ? Math.max(0.7, Math.min(4, w / STACK_W, baseBarH / STACK_H))
         : Math.max(0.7, Math.min(4, w / BAR_W, baseBarH / BAR_H));
       doc.documentElement.style.fontSize = (10 * scale).toFixed(2) + "px";
+
       root.classList.toggle("stack", stack);
       root.classList.toggle("theme-glass", glass);
       root.classList.toggle("theme-mini", mini);
-      root.classList.toggle("big", big);
+      root.classList.toggle("theme-liquid", liquid);
+      root.classList.toggle("no-ripple", !(Number(settings.rippleStrength) > 0));
       root.classList.toggle("card", card);
+
+      void doc.documentElement.offsetWidth;
+      void root.offsetWidth;
+
       const pad = card && !glass ? 10 * scale : 0;
       root.style.setProperty("--bar-h", qOpen || holding ? Math.max(40, baseBarH - 2 * pad) + "px" : "100%");
       const lw = w / scale;
@@ -339,17 +479,7 @@ html,body{margin:0;height:100%}
       root.classList.toggle("no-like", !stack && lw < 370);
       root.classList.toggle("no-skip", !stack && lw < 330);
 
-      targets.forEach((t, i) => {
-        const r1 = first[i], r2 = t.getBoundingClientRect();
-        if (!r2.width || !r2.height) return;
-        const dx = r1.left - r2.left, dy = r1.top - r2.top;
-        const k = t === els.disc ? r1.width / r2.width : 1;
-        if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(k - 1) < 0.01) return;
-        t.animate([
-          { transformOrigin: "0 0", transform: `translate(${dx}px,${dy}px) scale(${k})` },
-          { transformOrigin: "0 0", transform: "none" }
-        ], { duration: 600, easing: "cubic-bezier(.25,.8,.25,1)" });
-      });
+      scheduleTitleMarquee();
     }
 
     function pop(btn) {
@@ -364,22 +494,31 @@ html,body{margin:0;height:100%}
       swell(els.bar, 1.01, 480);
     }
 
-    const SPIN = { slow: 8, "33": 60 / 33.33, "45": 60 / 45 };
+    const SPIN = { slow: 8 };
 
     function applySettings() {
       if (!root) return;
       root.classList.toggle("is-perf", !!settings.performance);
-      root.classList.toggle("has-arm", !!settings.tonearm);
       root.style.setProperty("--blur", (Number(settings.blur) || 0) + "px");
       root.style.setProperty("--tint", (Math.max(0, Math.min(100, Number(settings.tintStrength))) / 100 || 0).toFixed(2));
       root.classList.toggle("autohide", !!settings.autoHide);
+      root.classList.toggle("bg-motion", !!settings.bgMotion);
+      root.classList.toggle("lyr-stack", settings.lyricStyle === "stack");
+      if (lyrStyleSeen !== settings.lyricStyle) {
+        lyrStyleSeen = settings.lyricStyle;
+        resetLyricStack();
+        lyrIdx = -1;
+        els.lyric.dataset.t = "";
+      }
       layout();
+      applyRipple(true);
       auraKey = "";
       updateAura().catch(() => {});
       spinWant(!!lastPlaying);
       const uri = Spicetify.Player.data?.item?.uri || "";
-      if (settings.lyrics && (!lyr || lyr.uri !== uri)) loadLyrics(uri);
+      if (settings.lyrics && !settings.performance && (!lyr || lyr.uri !== uri) && lyrPending !== uri) loadLyrics(uri);
       else updateLyric();
+      scheduleTitleMarquee();
     }
 
     function toast(msg) {
@@ -415,6 +554,7 @@ html,body{margin:0;height:100%}
 
     function paintQueue(list) {
       qTracks = list;
+      if (els.qshuffle) els.qshuffle.disabled = list.length < 2;
       els.qlist.dataset.sig = sigOf(list);
       els.qlist.replaceChildren();
       if (!list.length) {
@@ -460,6 +600,25 @@ html,body{margin:0;height:100%}
 
     const ref = t => ({ uri: t.uri, uid: t.uid });
 
+    async function syncQueueOrder(list, expected, delay) {
+      try {
+        const api = Spicetify.Platform && Spicetify.Platform.PlayerAPI;
+        if (api && typeof api.reorderQueue === "function") {
+          for (let i = list.length - 2; i >= 0; i--) {
+            await api.reorderQueue([ref(list[i])], { before: ref(list[i + 1]) });
+          }
+        }
+      } catch (_) {}
+      await sleep(delay);
+      if (readQueue().map(t => t.uri).join("|") !== expected) {
+        try {
+          await Spicetify.removeFromQueue(list.map(ref));
+          await Spicetify.addToQueue(list.map(t => ({ uri: t.uri })));
+          await sleep(delay);
+        } catch (_) {}
+      }
+    }
+
     async function moveTrack(from, to) {
       if (from === to || from < 0 || to < 0 || from >= qTracks.length || to >= qTracks.length) return;
       qBusy = true;
@@ -475,19 +634,14 @@ html,body{margin:0;height:100%}
           const after = list[to - 1];
           await api.reorderQueue([ref(item)], before ? { before: ref(before) } : { after: ref(after) });
         }
-      } catch (err) {
-        console.warn("[vinyl-mini-player] reorderQueue failed", err);
-      }
+      } catch (_) {}
       await sleep(350);
-      let actual = readQueue().map(t => t.uri).join("|");
-      if (actual !== expected) {
+      if (readQueue().map(t => t.uri).join("|") !== expected) {
         try {
           await Spicetify.removeFromQueue(list.map(ref));
           await Spicetify.addToQueue(list.map(t => ({ uri: t.uri })));
           await sleep(350);
-        } catch (err) {
-          console.warn("[vinyl-mini-player] queue rebuild failed", err);
-        }
+        } catch (_) {}
       }
       qBusy = false;
       renderQueue(true);
@@ -500,7 +654,7 @@ html,body{margin:0;height:100%}
       const list = qTracks.slice();
       list.splice(i, 1);
       paintQueue(list);
-      try { await Spicetify.removeFromQueue([ref(t)]); } catch (err) { console.warn("[vinyl-mini-player] remove failed", err); }
+      try { await Spicetify.removeFromQueue([ref(t)]); } catch (_) {}
       await sleep(250);
       qBusy = false;
       renderQueue(true);
@@ -511,6 +665,25 @@ html,body{margin:0;height:100%}
       Spicetify.Player.next();
     }
 
+    async function reshuffleQueue() {
+      if (qBusy || qTracks.length < 2) return;
+      qBusy = true;
+      const before = qTracks.slice();
+      const list = before.slice();
+      for (let tries = 0; tries < 6; tries++) {
+        for (let i = list.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [list[i], list[j]] = [list[j], list[i]];
+        }
+        if (list.some((t, i) => t.uri !== before[i].uri)) break;
+      }
+      paintQueue(list);
+      if (els && els.qshuffle) els.qshuffle.disabled = true;
+      await syncQueueOrder(list, list.map(t => t.uri).join("|"), 350);
+      qBusy = false;
+      renderQueue(true);
+    }
+
     function setQueueOpen(open) {
       if (!els || open === qOpen) return;
       qOpen = open;
@@ -518,12 +691,16 @@ html,body{margin:0;height:100%}
       if (open) {
         qHome = { x: win.screenX, y: win.screenY };
         qShift = null;
-        baseBarH = win.innerHeight || BAR_H;
+        baseBarH = (win.innerHeight - qExtra) || BAR_H;
         holdUntil = 0;
+        lockSize = null;
+        guardUntil = 0;
         root.classList.add("has-queue");
         layout();
-        qExtra = Math.round(QUEUE_H * scale);
-        try { win.resizeBy(0, qExtra); } catch (_) { qExtra = 0; }
+        if (!qExtra) {
+          qExtra = Math.round(QUEUE_H * scale);
+          try { win.resizeBy(0, qExtra); } catch (_) { qExtra = 0; }
+        }
         qFirstPaint = true;
         els.qlist.dataset.sig = "";
         renderQueue(true);
@@ -538,74 +715,77 @@ html,body{margin:0;height:100%}
         const shift = qShift || (qHome ? { x: w.screenX - qHome.x, y: w.screenY - qHome.y } : null);
         const tx = shift ? w.screenX - shift.x : null;
         const ty = shift ? w.screenY - shift.y : null;
-        holdUntil = Date.now() + 450;
+        holdUntil = Date.now() + 1000;
+        lockSize = null;
+        guardUntil = 0;
         layout();
-        if (qExtra) { try { w.resizeBy(0, -qExtra); } catch (_) {} qExtra = 0; }
-        if (shift) {
-          const back = () => {
-            if (win === w && !qOpen && !winDragging) { try { w.moveTo(tx, ty); } catch (_) {} }
-          };
-          back();
-          setTimeout(back, 120);
-          setTimeout(back, 350);
-        }
-        setTimeout(() => { if (win === w) layout(); }, 480);
-        setTimeout(() => { if (root && !qOpen) root.classList.remove("has-queue"); }, 240);
+        w.setTimeout(() => {
+          if (win !== w || qOpen) return;
+          if (qExtra) { try { w.resizeBy(0, -qExtra); } catch (_) {} qExtra = 0; }
+          if (shift) {
+            const back = () => {
+              if (win === w && !qOpen && !winDragging) { try { w.moveTo(tx, ty); } catch (_) {} }
+            };
+            back();
+            w.setTimeout(back, 120);
+            w.setTimeout(back, 350);
+          }
+          if (root) root.classList.remove("has-queue");
+          w.setTimeout(() => { if (win === w) layout(); }, 480);
+        }, 380);
       }
     }
 
     function marqueeOn() {
       if (!els || settings.performance) return;
-      [els.titleBox, els.artistBox].forEach(box => {
-        const span = box && box.firstElementChild;
-        if (!span || !span.animate || !box.offsetWidth) return;
-        box.style.textOverflow = "clip";
-        span.style.display = "inline-block";
-        const ov = span.offsetWidth - box.clientWidth;
-        if (ov > 2) {
-          marqueeAnims.push(span.animate([
-            { transform: "translateX(0)" },
-            { transform: "translateX(0)", offset: 0.15 },
-            { transform: `translateX(${-ov}px)`, offset: 0.85 },
-            { transform: `translateX(${-ov}px)` }
-          ], { duration: Math.max(3600, ov * 45 + 2600), iterations: Infinity, direction: "alternate", easing: "ease-in-out" }));
-        } else {
-          box.style.textOverflow = "";
-          span.style.display = "";
-        }
-      });
+      const box = els.titleBox;
+      const span = box && box.firstElementChild;
+      if (!span || !span.animate || !box.offsetWidth) return;
+      box.style.textOverflow = "clip";
+      span.style.display = "inline-block";
+      const ov = span.offsetWidth - box.clientWidth;
+      if (ov > 2) {
+        marqueeAnims.push(span.animate([
+          { transform: "translateX(0)" },
+          { transform: "translateX(0)", offset: 0.15 },
+          { transform: `translateX(${(box.dir === "rtl" ? 1 : -1) * ov}px)`, offset: 0.85 },
+          { transform: `translateX(${(box.dir === "rtl" ? 1 : -1) * ov}px)` }
+        ], { duration: Math.max(3600, ov * 45 + 2600), iterations: Infinity, direction: "alternate", easing: "ease-in-out" }));
+      } else {
+        box.style.textOverflow = "";
+        span.style.display = "";
+      }
     }
 
     function marqueeOff() {
       marqueeAnims.forEach(a => { try { a.cancel(); } catch (_) {} });
       marqueeAnims = [];
-      if (!els) return;
-      [els.titleBox, els.artistBox].forEach(box => {
-        if (!box) return;
-        box.style.textOverflow = "";
-        if (box.firstElementChild) box.firstElementChild.style.display = "";
-      });
+      if (!els || !els.titleBox) return;
+      els.titleBox.style.textOverflow = "";
+      if (els.titleBox.firstElementChild) els.titleBox.firstElementChild.style.display = "";
     }
+
+    const endMs = v => (Number.isFinite(Number(v)) && Number(v) > 0 ? Math.round(Number(v) * 1000) : undefined);
 
     async function fetchSpicy(id) {
       const key = String(settings.spicyKey || "").trim();
-      if (!key) return null;
-      if (/^sl_sk_/.test(key)) { console.warn("[vinyl-mini-player] secret Spicy Lyrics keys (sl_sk_) must not be used in a client; use a publishable sl_pk_ key"); return null; }
+      if (!key || /^sl_sk_/.test(key)) return null;
       const res = await fetch(`https://api.spicylyrics.org/v1/lyrics/${id}`, { headers: { Authorization: "Bearer " + key } });
-      if (!res.ok) { console.info("[vinyl-mini-player] Spicy Lyrics answered", res.status); return null; }
+      if (res.status === 429 || res.status >= 500) throw new Error("Spicy Lyrics answered " + res.status);
+      if (!res.ok) return null;
       const data = await res.json();
       const body = (data && data.Body) || data;
       if (!body || !Array.isArray(body.Content)) return null;
       const lines = [];
       if (body.Type === "Line") {
-        body.Content.forEach(c => { if (c && c.Text != null) lines.push({ t: Math.round((Number(c.StartTime) || 0) * 1000), w: String(c.Text).trim() }); });
+        body.Content.forEach(c => { if (c && c.Text != null) lines.push({ t: Math.round((Number(c.StartTime) || 0) * 1000), w: String(c.Text).trim(), e: endMs(c.EndTime) }); });
       } else if (body.Type === "Syllable") {
         body.Content.forEach(c => {
           const lead = c && c.Lead;
           if (!lead || !Array.isArray(lead.Syllables)) return;
           let text = "";
           lead.Syllables.forEach(sy => { text += String(sy.Text || "") + (sy.IsPartOfWord ? "" : " "); });
-          lines.push({ t: Math.round((Number(lead.StartTime) || 0) * 1000), w: text.replace(/\s+/g, " ").trim() });
+          lines.push({ t: Math.round((Number(lead.StartTime) || 0) * 1000), w: text.replace(/\s+/g, " ").trim(), e: endMs(lead.EndTime != null ? lead.EndTime : (lead.Syllables[lead.Syllables.length - 1] || {}).EndTime) });
         });
       } else return null;
       if (!lines.length) return null;
@@ -654,6 +834,7 @@ html,body{margin:0;height:100%}
       if (album) q.set("album_name", album);
       if (dur) q.set("duration", dur);
       const res = await fetch("https://lrclib.net/api/get?" + q);
+      if (res.status === 429 || res.status >= 500) throw new Error("LRCLIB answered " + res.status);
       let data = res.ok ? await res.json() : null;
       if (!data || !data.syncedLyrics) {
         q.delete("album_name");
@@ -672,23 +853,29 @@ html,body{margin:0;height:100%}
       lyr = null;
       lyrIdx = -1;
       const token = ++lyrToken;
-      if (!settings.lyrics || !uri || !uri.startsWith("spotify:track:")) { updateLyric(); return; }
+      if (!settings.lyrics || settings.performance || !uri || !uri.startsWith("spotify:track:")) { lyrPending = ""; updateLyric(); return; }
       const ck = `${uri}|${settings.lyricsSource}|${settings.spicyKey ? 1 : 0}`;
-      if (lyricCache.has(ck)) { lyr = lyricCache.get(ck); updateLyric(); return; }
+      const hit = lyricCache.get(ck);
+      if (hit && hit.exp > Date.now()) { lyrPending = ""; lyr = hit.entry; updateLyric(); return; }
+      lyrPending = uri;
+      await sleep(400);
+      if (token !== lyrToken) return;
       const item = (Spicetify.Player.data && Spicetify.Player.data.item) || {};
       const id = uri.split(":")[2];
       const sources = { spicy: () => fetchSpicy(id), lrclib: () => fetchLrclib(item), spotify: () => fetchSpotifyLyrics(id) };
       const order = ["spicy", "lrclib", "spotify"];
       const first = order.indexOf(settings.lyricsSource);
       if (first > 0) order.unshift(order.splice(first, 1)[0]);
-      let res = null;
+      let res = null, uncertain = false;
       for (const name of order) {
-        try { res = await sources[name](); } catch (err) { console.info(`[vinyl-mini-player] ${name} lyrics failed`, err); }
+        try { res = await sources[name](); } catch (_) { uncertain = true; }
         if (res || token !== lyrToken) break;
       }
       if (token !== lyrToken) return;
+      lyrPending = "";
       const entry = { uri, lines: res ? res.lines : [], credit: res ? res.credit : null };
-      lyricCache.set(ck, entry);
+      const ttl = res ? 3600e3 : (uncertain ? 20e3 : 600e3);
+      lyricCache.set(ck, { entry, exp: Date.now() + ttl });
       if (lyricCache.size > 30) lyricCache.delete(lyricCache.keys().next().value);
       lyr = entry;
       lyrIdx = -1;
@@ -716,9 +903,10 @@ html,body{margin:0;height:100%}
       });
     }
 
-    function setLyricText(text) {
-      if (!els || els.lyric.dataset.t === text) return;
-      els.lyric.dataset.t = text;
+    function setLyricText(text, idx = -1) {
+      const key = idx + "|" + text;
+      if (!els || els.lyric.dataset.t === key) return;
+      els.lyric.dataset.t = key;
       const box = els.lyricBox, span = els.lyric;
       if (lyrAnim) { try { lyrAnim.cancel(); } catch (_) {} lyrAnim = null; }
       const commit = () => {
@@ -726,11 +914,13 @@ html,body{margin:0;height:100%}
         lyrSwapping = false;
         if (!els) return;
         span.textContent = text;
+        lyrRtl = isRtl(text);
+        box.classList.toggle("rtl", lyrRtl);
         span.style.transition = "none";
         span.style.setProperty("--p", "0%");
         span.style.setProperty("--sx", "0px");
-        box.style.setProperty("--ml", "0px");
-        box.style.setProperty("--mr", "0px");
+        box.style.setProperty("--ml", "2px");
+        box.style.setProperty("--mr", "2px");
         void span.offsetWidth;
         span.style.transition = "";
         if (!text || settings.performance || !box.animate) return;
@@ -748,36 +938,137 @@ html,body{margin:0;height:100%}
       lyrAnim.onfinish = commit;
     }
 
+    const RTL_RE = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/g;
+    const LTR_RE = /[A-Za-z\u00C0-\u024F\u0370-\u03FF\u0400-\u04FF]/g;
+    const isRtl = t => {
+      const str = String(t || "");
+      const r = (str.match(RTL_RE) || []).length;
+      return r > 0 && r >= (str.match(LTR_RE) || []).length;
+    };
+
+    const LYRIC_LEAD = 80;
+    const lineSpan = (line, gap) => {
+      if (line.e && line.e > line.t) return Math.max(400, Math.min(line.e - line.t, 15000));
+      return Math.max(400, Math.min(gap * 0.96, Math.max(900, (line.w || "").length * 75)));
+    };
+
+    function resetLyricStack() {
+      if (lyrStackAnim) { try { lyrStackAnim.cancel(); } catch (_) {} lyrStackAnim = null; }
+      lyrEls.forEach(el => el.remove());
+      lyrEls.clear();
+    }
+
+    function renderLyricStack(lines, i) {
+      const box = els.lyrStack;
+      if (!box) return;
+      if (lyrEls.size && !lyrEls.has(i) && !lyrEls.has(i - 1) && !lyrEls.has(i + 1)) resetLyricStack();
+      const snap = !lyrEls.size;
+      const text = k => lines[k].w || "♪";
+
+      for (let k = i - 1; k <= i + 1; k++) {
+        if (k < 0 || k >= lines.length || lyrEls.has(k)) continue;
+        const el = doc.createElement("div");
+        el.className = "lyric-line" + (snap ? " snap" : "");
+        el.dir = isRtl(lines[k].w) ? "rtl" : "ltr";
+        el.textContent = text(k);
+        box.appendChild(el);
+        lyrEls.set(k, el);
+      }
+
+      lyrEls.forEach((el, k) => {
+        if (k < i - 1 || k > i + 1) {
+          el.remove();
+          lyrEls.delete(k);
+          return;
+        }
+        const role = k === i ? "active" : k === i - 1 ? "prev" : "next";
+        const wasActive = el.classList.contains("active");
+        el.style.setProperty("--pos", String(k - i));
+        el.className = "lyric-line " + role + (snap ? " snap" : "");
+        if (role !== "active" && wasActive) el.style.setProperty("--sx", "0px");
+      });
+
+      if (snap) win.requestAnimationFrame(() => lyrEls.forEach(el => el.classList.remove("snap")));
+    }
+
     function updateLyric() {
       if (!els || !root) return;
       const uri = Spicetify.Player.data?.item?.uri || "";
-      const show = !!(settings.lyrics && lyr && lyr.uri === uri && lyr.lines.length);
+      const stackMode = settings.lyricStyle === "stack";
+      const hasLines = !!(lyr && lyr.uri === uri && lyr.lines && lyr.lines.length);
+      const show = !!(settings.lyrics && !settings.performance && hasLines);
+
       root.classList.toggle("has-lyrics", show);
       setCredit(show ? lyr.credit : null);
-      if (!show) { setLyricText(""); lyrIdx = -1; return; }
+
+      if (!show) {
+        if (stackMode) resetLyricStack(); else setLyricText("");
+        lyrIdx = -1;
+        lyrMeasKey = "";
+        return;
+      }
+
       const lines = lyr.lines;
-      const pos = (Spicetify.Player.getProgress() || 0) + 150 + (Number(settings.lyricOffset) || 0);
+      const pos = (Spicetify.Player.getProgress() || 0) + LYRIC_LEAD;
       let i = lyrIdx;
       if (i < 0 || i >= lines.length || lines[i].t > pos) i = -1;
       while (i + 1 < lines.length && lines[i + 1].t <= pos) i++;
+
+      if (stackMode) {
+        const beforeStart = i < 0 && pos < lines[0].t;
+        root.classList.toggle("has-lyrics", show && !beforeStart);
+        if (beforeStart) {
+          resetLyricStack();
+          lyrIdx = -1;
+          return;
+        }
+        if (i !== lyrIdx || !lyrEls.size) {
+          lyrIdx = i;
+          renderLyricStack(lines, i);
+        }
+
+        if (i >= 0 && lyrEls.has(i)) {
+          const activeEl = lyrEls.get(i);
+          const box = els.lyrStack;
+          const t0 = lines[i].t;
+          const t1 = i + 1 < lines.length ? lines[i + 1].t : t0 + 5000;
+          const real = Math.max(0, Math.min(1, (pos - t0) / lineSpan(lines[i], Math.max(400, t1 - t0))));
+          const boxW = box.clientWidth;
+          const textW = activeEl.offsetWidth * 1.04;
+          const overflow = textW - boxW;
+
+          if (overflow > 2) {
+            const panX = Math.min(overflow, Math.max(0, real * textW - boxW * 0.45));
+            const pad = Math.max(2, Math.min(6, boxW * 0.04));
+            activeEl.style.setProperty("--sx", (-panX).toFixed(1) + "px");
+            box.style.setProperty("--ml", pad + "px");
+            box.style.setProperty("--mr", pad + "px");
+          } else {
+            activeEl.style.setProperty("--sx", "0px");
+            box.style.setProperty("--ml", "2px");
+            box.style.setProperty("--mr", "2px");
+          }
+        }
+        return;
+      }
+
       if (i !== lyrIdx) {
         lyrIdx = i;
-        setLyricText(i >= 0 ? (lines[i].w || "♪") : "");
+        setLyricText(i >= 0 ? (lines[i].w || "♪") : "", i);
       }
       if (i >= 0 && !lyrSwapping) {
         const t0 = lines[i].t;
         const t1 = i + 1 < lines.length ? lines[i + 1].t : t0 + 5000;
-        const span = Math.max(800, Math.min(t1 - t0, 9000)) * 0.9;
-        const real = Math.max(0, Math.min(1, (pos - t0) / span));
-        const p = settings.performance ? 1 : real;
-        els.lyric.style.setProperty("--p", (p * 100).toFixed(1) + "%");
-        const bw = els.lyricBox.clientWidth, tw = els.lyric.offsetWidth, ov = tw - bw;
-        let sx = 0;
-        if (ov > 2) sx = Math.min(ov, Math.max(0, real * tw - bw * 0.55));
-        const fade = Math.min(bw * 0.12, 16);
-        els.lyric.style.setProperty("--sx", (-sx).toFixed(1) + "px");
-        els.lyricBox.style.setProperty("--ml", (ov > 2 && sx > 1 ? fade : 0).toFixed(1) + "px");
-        els.lyricBox.style.setProperty("--mr", (ov > 2 && sx < ov - 1 ? fade : 0).toFixed(1) + "px");
+        const real = Math.max(0, Math.min(1, (pos - t0) / lineSpan(lines[i], Math.max(400, t1 - t0))));
+        els.lyric.style.setProperty("--p", (real * 100).toFixed(1) + "%");
+        const mkey = i + "|" + (win ? win.innerWidth : 0);
+        if (mkey !== lyrMeasKey || !lyrTW) { lyrBW = els.lyricBox.clientWidth; lyrTW = els.lyric.offsetWidth; lyrMeasKey = mkey; }
+        const bw = lyrBW, tw = lyrTW, ov = tw - bw;
+        const sx = ov > 2 ? Math.min(ov, Math.max(0, real * tw - bw * 0.45)) : 0;
+        const pad = Math.max(2, Math.min(6, bw * 0.04));
+        els.lyric.style.setProperty("--sx", (lyrRtl ? sx : -sx).toFixed(1) + "px");
+        els.lyricBox.style.setProperty("--ml", pad + "px");
+        els.lyricBox.style.setProperty("--mr", pad + "px");
       }
     }
 
@@ -884,6 +1175,8 @@ html,body{margin:0;height:100%}
       if (key === auraKey) return;
       auraKey = key;
       const token = ++auraToken;
+      const cached = paletteCache.get(uri);
+      if (cached) { setAura(cached[0], cached[1]); return; }
       let a = null, b = null;
       try {
         if (uri && Spicetify.colorExtractor) {
@@ -902,7 +1195,9 @@ html,body{margin:0;height:100%}
       if (token !== auraToken || !root) return;
       a = a || [70, 80, 120];
       b = b || shade(a, 0.5);
-      setAura(shade(a, 0.72), shade(b, 0.55));
+      const pa = shade(a, 0.72), pb = shade(b, 0.55);
+      if (uri) { paletteCache.set(uri, [pa, pb]); if (paletteCache.size > 24) paletteCache.delete(paletteCache.keys().next().value); }
+      setAura(pa, pb);
     }
 
     function syncPlaying(playing) {
@@ -913,12 +1208,128 @@ html,body{margin:0;height:100%}
       spinWant(playing);
     }
 
+    function setShuffleState(shuf) {
+      if (!els || !els.shuffle) return;
+      const active = !!shuf;
+      els.shuffle.classList.toggle("vmp-active", active);
+      els.shuffle.setAttribute("aria-label", active ? "Shuffle on" : "Shuffle");
+      lastShuffle = active;
+    }
+
+    function syncShuffleState(force = false) {
+      if (!els || !els.shuffle) return;
+      let shuf = false;
+      try { shuf = !!Spicetify.Player.getShuffle(); } catch (_) {}
+      if (!force && shuf === lastShuffle) return;
+      setShuffleState(shuf);
+    }
+
     function render() {
       if (!root || !els) return;
       let playing = false;
       try { playing = !!Spicetify.Player.isPlaying(); } catch (_) {}
-      try { syncPlaying(playing); } catch (err) { console.warn("[vinyl-mini-player] spin sync failed", err); }
-      try { renderTrack(); } catch (err) { console.warn("[vinyl-mini-player] render failed", err); }
+      try { syncPlaying(playing); } catch (_) {}
+      try { renderTrack(); } catch (_) {}
+    }
+
+    function titleMarqueeStop() {
+      if (titleAnim) { try { titleAnim.cancel(); } catch (_) {} titleAnim = null; }
+      if (!els || !els.titleBox) return;
+      els.titleBox.classList.remove("marq");
+      els.titleBox.style.textOverflow = "";
+      els.title.style.display = "";
+    }
+
+    function titleMarqueeStart() {
+      titleMarqueeStop();
+      if (!els || settings.performance || !settings.titleMarquee) return;
+      const box = els.titleBox, span = els.title;
+      if (!box.offsetWidth || !span.animate) return;
+      span.style.display = "inline-block";
+      const ov = span.offsetWidth - box.clientWidth;
+      if (ov <= 2) { span.style.display = ""; return; }
+      box.style.textOverflow = "clip";
+      box.classList.add("marq");
+      const dist = (box.dir === "rtl" ? 1 : -1) * ov;
+      const start = 1800, scroll = Math.max(3500, ov * 70), hold = 3000;
+      const total = start + scroll + hold + scroll;
+      const ease = "cubic-bezier(.37,0,.63,1)";
+      titleAnim = span.animate([
+        { transform: "translateX(0)", offset: 0 },
+        { transform: "translateX(0)", offset: start / total, easing: ease },
+        { transform: `translateX(${dist}px)`, offset: (start + scroll) / total },
+        { transform: `translateX(${dist}px)`, offset: (start + scroll + hold) / total, easing: ease },
+        { transform: "translateX(0)", offset: 1 }
+      ], { duration: total, iterations: Infinity });
+    }
+
+    function scheduleTitleMarquee() {
+      if (!win) return;
+      win.clearTimeout(marqT);
+      marqT = win.setTimeout(titleMarqueeStart, 160);
+    }
+
+    function applyTrack(title, artist, cover) {
+      const textChanged = els.title.textContent !== title || els.artist.textContent !== artist;
+      setText(els.title, title);
+      setText(els.artist, artist);
+      const td = isRtl(title) ? "rtl" : "ltr", ad = isRtl(artist) ? "rtl" : "ltr";
+      if (els.titleBox.dir !== td) els.titleBox.dir = td;
+      if (els.artistBox.dir !== ad) els.artistBox.dir = ad;
+      if (textChanged && metaHover) { marqueeOff(); marqueeOn(); }
+      if (textChanged) scheduleTitleMarquee();
+      if (els.cover.dataset.src !== cover) {
+        els.cover.dataset.src = cover;
+        els.cover.src = toImg(cover);
+        els.cover.style.visibility = cover ? "visible" : "hidden";
+        els.bgimg.style.opacity = "0";
+        if (cover) {
+          els.bgimg.onload = () => { if (els) els.bgimg.style.opacity = "1"; };
+          els.bgimg.src = toImg(cover);
+        } else els.bgimg.removeAttribute("src");
+      }
+    }
+
+    function endSwap(id) {
+      if (id !== swapId || !swapping) return;
+      swapping = false;
+      if (pendingTrack && els) {
+        const p = pendingTrack;
+        pendingTrack = null;
+        applyTrack(p.title, p.artist, p.cover);
+      }
+    }
+
+    function transitionTrack(title, artist, cover) {
+      swapping = true;
+      pendingTrack = null;
+      const id = ++swapId;
+      const dir = skipDir || 1;
+      const disc = els.disc;
+      const parts = [els.titleBox, els.artistBox];
+      titleMarqueeStop();
+      const outs = [disc.animate(
+        [{ transform: "perspective(700px) rotateY(0deg)", opacity: 1 }, { transform: `perspective(700px) rotateY(${dir * 88}deg)`, opacity: 0.85 }],
+        { duration: 220, easing: "cubic-bezier(.5,0,.9,.6)", fill: "forwards" })];
+      parts.forEach((n, k) => outs.push(n.animate(
+        [{ transform: "translateX(0)", opacity: 1, filter: "blur(0)" }, { transform: `translateX(${-dir * 1.4}rem)`, opacity: 0, filter: "blur(.4rem)" }],
+        { duration: 200, delay: k * 40, easing: "cubic-bezier(.4,0,1,1)", fill: "forwards" })));
+      let swapped = false;
+      const swap = () => {
+        if (swapped || id !== swapId || !els) return;
+        swapped = true;
+        applyTrack(title, artist, cover);
+        outs.forEach(a => { try { a.cancel(); } catch (_) {} });
+        disc.animate(
+          [{ transform: `perspective(700px) rotateY(${-dir * 88}deg)`, opacity: 0.85 }, { transform: "perspective(700px) rotateY(0deg)", opacity: 1 }],
+          { duration: 520, easing: "cubic-bezier(.22,1.25,.36,1)" });
+        parts.forEach((n, k) => n.animate(
+          [{ transform: `translateX(${dir * 1.4}rem)`, opacity: 0, filter: "blur(.4rem)" }, { transform: "translateX(0)", opacity: 1, filter: "blur(0)" }],
+          { duration: 560, delay: 60 + k * 70, easing: "cubic-bezier(.34,1.35,.64,1)", fill: "backwards" }));
+        win.setTimeout(() => endSwap(id), 700);
+      };
+      outs[0].onfinish = swap;
+      win.setTimeout(swap, 600);
     }
 
     function renderTrack() {
@@ -929,16 +1340,13 @@ html,body{margin:0;height:100%}
       const cover = meta.image_xlarge_url || meta.image_large_url || meta.image_url || item.album?.images?.[0]?.url || "";
       const key = (item.uri || "") + "|" + title;
 
-      const textChanged = els.title.textContent !== title || els.artist.textContent !== artist;
-      setText(els.title, title);
-      setText(els.artist, artist);
-      if (textChanged && metaHover) { marqueeOff(); marqueeOn(); }
-      if (els.cover.dataset.src !== cover) {
-        els.cover.dataset.src = cover;
-        els.cover.src = toImg(cover);
-        els.cover.style.visibility = cover ? "visible" : "hidden";
-      }
-      if (lastKey !== null && key !== lastKey) { fadeIn(els.meta, skipDir); fadeIn(els.disc, skipDir); }
+      const changed = lastKey !== null && key !== lastKey;
+      const fx = changed && settings.trackFx && !settings.performance && !!cover;
+      if (changed) guardWindowSize();
+      if (swapping) pendingTrack = { title, artist, cover };
+      else if (fx) transitionTrack(title, artist, cover);
+      else applyTrack(title, artist, cover);
+      if (changed && !fx && !swapping) { fadeIn(els.meta, skipDir); fadeIn(els.disc, skipDir); }
       if (key !== lastKey) { updateAura().catch(() => {}); loadLyrics(item.uri || ""); }
       lastKey = key;
 
@@ -954,14 +1362,7 @@ html,body{margin:0;height:100%}
         lastHeart = heart;
       }
 
-      let shuf = false;
-      try { shuf = !!Spicetify.Player.getShuffle(); } catch (_) {}
-      if (shuf !== lastShuffle) {
-        els.shuffle.classList.toggle("vmp-active", shuf);
-        els.shuffle.setAttribute("aria-label", shuf ? "Shuffle on" : "Shuffle");
-        lastShuffle = shuf;
-      }
-
+      syncShuffleState();
       updateProgress();
       renderQueue(false);
     }
@@ -970,6 +1371,7 @@ html,body{margin:0;height:100%}
       const P = Spicetify.Player;
       if (name === "prev" || name === "next") {
         skipDir = name === "next" ? 1 : -1;
+        guardWindowSize();
         clearTimeout(skipTimer);
         skipTimer = setTimeout(() => { skipDir = 1; }, 2500);
       }
@@ -977,24 +1379,43 @@ html,body{margin:0;height:100%}
       else if (name === "next") P.next();
       else if (name === "play") {
         root.classList.toggle("is-playing");
+        lastPlaying = root.classList.contains("is-playing");
+        spinWant(lastPlaying);
         P.togglePlay();
         return;
-      }
-      else if (name === "queue") { setQueueOpen(!qOpen); return; }
+      } else if (name === "queue") { setQueueOpen(!qOpen); return; }
+      else if (name === "qshuffle") { reshuffleQueue(); return; }
       else if (name === "like") P.toggleHeart();
-      else if (name === "shuffle") P.toggleShuffle();
-      else if (name === "close") { win.close(); return; }
+      else if (name === "shuffle") {
+        const nextActive = !lastShuffle;
+        setShuffleState(nextActive);
+        P.toggleShuffle();
+        setTimeout(() => syncShuffleState(true), 120);
+        return;
+      } else if (name === "close") { win.close(); return; }
       setTimeout(render, 120);
     }
 
     function detach() {
       try { if (tickWin) { tickWin.clearInterval(tick); tickWin.clearInterval(lyricTimer); } } catch (_) {}
+      try { titleMarqueeStop(); } catch (_) {}
+      try { if (win) win.clearTimeout(marqT); } catch (_) {}
+      resetLyricStack();
+      clearTimeout(lockTimer);
+      lockSize = null;
+      guardUntil = 0;
+      swapping = false;
+      pendingTrack = null;
+      lyrStyleSeen = null;
+      lyrRtl = false;
+      lyrMeasKey = "";
       lyricTimer = null;
       metaHover = false;
       marqueeAnims = [];
       lyr = null;
       lyrIdx = -1;
       lyrToken++;
+      lyrPending = "";
       lyrAnim = null;
       lyrSwapping = false;
       tick = null;
@@ -1018,10 +1439,23 @@ html,body{margin:0;height:100%}
       baseBarH = BAR_H;
       holdUntil = 0;
       curStack = false;
-      layoutSig = null;
       clearTimeout(skipTimer);
       skipDir = 1;
       lastKey = lastHeart = lastShuffle = null;
+    }
+
+    function guardWindowSize() {
+      if (!win || qOpen) return;
+      if (!lockSize) lockSize = { w: win.innerWidth, h: win.innerHeight };
+      guardUntil = Date.now() + 2500;
+    }
+
+    function undoUnwantedResize(target) {
+      if (!guardUntil || Date.now() >= guardUntil || !lockSize || qOpen || Date.now() < holdUntil || winDragging) return false;
+      if (Math.abs(target.innerWidth - lockSize.w) <= 3 && Math.abs(target.innerHeight - lockSize.h) <= 3) return false;
+      const ow = target.outerWidth - target.innerWidth, oh = target.outerHeight - target.innerHeight;
+      try { target.resizeTo(lockSize.w + ow, lockSize.h + oh); } catch (_) {}
+      return true;
     }
 
     function attach(target) {
@@ -1045,7 +1479,7 @@ html,body{margin:0;height:100%}
       doc.body.style.overflow = "hidden";
       doc.body.style.fontFamily = computed.fontFamily;
       doc.body.style.color = computed.color;
-      doc.documentElement.style.background = "#0b0b0f";
+      doc.documentElement.style.background = "";
 
       root = doc.createElement("div");
       root.className = "vmp-root";
@@ -1075,7 +1509,11 @@ html,body{margin:0;height:100%}
         shuffle: $('[data-act="shuffle"]'),
         queueBtn: $('[data-act="queue"]'),
         qlist: $(".vmp-qlist"),
-        toast: $(".vmp-toast")
+        toast: $(".vmp-toast"),
+        bgimg: $(".vmp-bgimg"),
+        dispRipple: $("#vmp-d-ripple"),
+        lyrStack: $(".vmp-lyrics-stack"),
+        qshuffle: $(".vmp-qshuffle")
       };
 
       els.disc.addEventListener("wheel", e => {
@@ -1253,20 +1691,27 @@ html,body{margin:0;height:100%}
 
       let saveTimer = 0;
       target.addEventListener("resize", () => {
-        layout();
+        if (undoUnwantedResize(target)) return;
+        target.requestAnimationFrame(layout);
         clearTimeout(saveTimer);
         saveTimer = setTimeout(saveWin, 400);
+        clearTimeout(lockTimer);
+        lockTimer = setTimeout(() => {
+          if (win === target && !qOpen && Date.now() >= guardUntil) lockSize = { w: target.innerWidth, h: target.innerHeight };
+        }, 500);
       });
+      lockTimer = setTimeout(() => { if (win === target && !qOpen) lockSize = { w: target.innerWidth, h: target.innerHeight }; }, 900);
       spinInit();
       applySettings();
       render();
-      els.meta.addEventListener("mouseenter", () => { metaHover = true; marqueeOn(); });
-      els.meta.addEventListener("mouseleave", () => { metaHover = false; marqueeOff(); });
+      syncShuffleState(true);
+      els.titleBox.addEventListener("mouseenter", () => { metaHover = true; marqueeOn(); });
+      els.titleBox.addEventListener("mouseleave", () => { metaHover = false; marqueeOff(); });
       root.classList.add("peek");
       setTimeout(() => { if (root) root.classList.remove("peek"); }, 2600);
       tickWin = target;
       tick = target.setInterval(render, 500);
-      lyricTimer = target.setInterval(updateLyric, 250);
+      lyricTimer = target.setInterval(updateLyric, 25);
     }
 
     async function openPlayer() {
@@ -1284,9 +1729,7 @@ html,body{margin:0;height:100%}
         if (window.documentPictureInPicture) {
           try {
             target = await window.documentPictureInPicture.requestWindow(size);
-          } catch (err) {
-            console.warn("[vinyl-mini-player] Picture-in-Picture unavailable, using a pop-up window", err);
-          }
+          } catch (_) {}
         }
         if (!target) target = window.open("", "vinyl-mini-player", `popup=yes,width=${size.width},height=${size.height}${winState ? `,left=${Math.round(winState.x)},top=${Math.round(winState.y)}` : ""}`);
         if (!target) {
@@ -1328,7 +1771,11 @@ html,body{margin:0;height:100%}
     Spicetify.Player.addEventListener("onplaypause", onPlayback);
     Spicetify.Player.addEventListener("songchange", onPlayback);
     const onProgress = () => {
-      try { if (root && !!Spicetify.Player.isPlaying() !== !!lastPlaying) render(); } catch (_) {}
+      try {
+        if (!root || !els) return;
+        syncShuffleState();
+        if (!!Spicetify.Player.isPlaying() !== !!lastPlaying) render();
+      } catch (_) {}
     };
     Spicetify.Player.addEventListener("onprogress", onProgress);
     cleanups.push(() => {
@@ -1348,34 +1795,36 @@ html,body{margin:0;height:100%}
     }, true);
 
     const SETTING_DEFS = [
-      { key: "theme", label: "Theme", type: "seg", options: [["classic", "Classic"], ["tinted", "TintedGlass"], ["minimal", "Minimal"]],
-        help: "Classic follows your Spotify theme. TintedGlass is frosted glass. Minimal is flat, dark and quiet." },
+      { key: "theme", label: "Theme", type: "seg", options: [["classic", "Classic"], ["tinted", "TintedGlass"], ["minimal", "Minimal"], ["liquid", "Liquid"]],
+        help: "Classic follows your Spotify theme. TintedGlass is frosted glass. Minimal is flat, dark and quiet. Liquid shows the cover art as a rippled background." },
+      { key: "rippleStrength", label: "Background ripple", type: "range", min: 0, max: 120, step: 5, unit: "", needs: "liquid",
+        help: "How strongly the Liquid background is warped like water. 0 shows the picture clean. The vinyl is never affected." },
+      { key: "bgMotion", label: "Animated background", type: "toggle", needs: "liquid",
+        help: "Lets the Liquid background drift slowly. The ripple stays. Performance mode turns it off." },
       { key: "tint", label: "Tint color", type: "tint", needs: "tinted",
         help: "Auto follows the album's colors. Custom lets you pick your own tint." },
       { key: "tintStrength", label: "Tint strength", type: "range", min: 0, max: 100, step: 5, unit: "%", needs: "tinted",
         help: "How strongly the color tints the glass. 0 is plain dark glass." },
-      { key: "bigVinyl", label: "Big vinyl", type: "toggle",
-        help: "Draws the vinyl larger than the card so it sticks out past the edges." },
-      { key: "rpm", label: "Vinyl speed", type: "seg", options: [["slow", "Slow"], ["33", "33 RPM"], ["45", "45 RPM"]],
-        help: "How fast the vinyl spins. Slow is relaxed; 33 and 45 match real records." },
       { key: "lyrics", label: "Live lyrics", type: "toggle",
         help: "Shows the current lyric line under the artist when the song has synced lyrics." },
+      { key: "lyricStyle", label: "Lyric style", type: "seg", options: [["default", "Default"], ["stack", "Afterimage"]],
+        help: "Default shows one line with a fill that follows it. Afterimage shows the previous, current and next line as a soft stack." },
       { key: "lyricsSource", label: "Lyrics source", type: "seg", options: [["auto", "Auto"], ["spicy", "Spicy"], ["lrclib", "LRCLIB"], ["spotify", "Spotify"]],
-        help: "Which service is tried first. If it has nothing, the others are tried in turn (Spicy needs a key)." },
-      { key: "lyricOffset", label: "Lyrics offset", type: "range", min: -3000, max: 3000, step: 50, unit: " ms", needs: null,
-        help: "Shifts the lyrics timing. Positive shows each line earlier, negative later." },
+        help: "Which service is tried first." },
       { key: "spicyKey", label: "Spicy Lyrics key", type: "text",
-        help: "Paste your publishable key (starts with sl_pk_) from developers.spicylyrics.org. Never use a secret sl_sk_ key." },
+        help: "Paste your publishable key (starts with sl_pk_) from developers.spicylyrics.org." },
       { key: "autoHide", label: "Auto-hide controls", type: "toggle",
         help: "Fades the buttons out when the mouse leaves the player and back in on hover." },
-      { key: "tonearm", label: "Tonearm", type: "toggle",
-        help: "Shows a needle arm that swings onto the record when music plays." },
+      { key: "trackFx", label: "Track change animation", type: "toggle",
+        help: "The artwork flips like a card when the song changes." },
+      { key: "titleMarquee", label: "Scroll long titles", type: "toggle",
+        help: "A title that does not fit scrolls to the end." },
       { key: "scrollStep", label: "Scroll volume step", type: "range", min: 1, max: 10, step: 1, unit: "%",
-        help: "Volume change per scroll tick over the vinyl. Hold Shift for 1% steps." },
+        help: "Volume change per scroll tick over the vinyl." },
       { key: "queueSize", label: "Queue size", type: "seg", options: [[3, "3"], [5, "5"], [10, "10"]],
         help: "How many upcoming tracks the queue panel lists." },
       { key: "blur", label: "Glass blur", type: "range", min: 0, max: 60, step: 5, unit: "px", needs: "tinted",
-        help: "How strongly TintedGlass frosts what is behind it. Higher is blurrier." },
+        help: "Glass blur intensity." },
       { key: "performance", label: "Performance mode", type: "toggle",
         help: "Turns off blur, shine and animations to save CPU and GPU." },
       { key: "replaceNative", label: "Replace Spotify's button", type: "toggle",
@@ -1385,17 +1834,19 @@ html,body{margin:0;height:100%}
     const SETTINGS_CSS = `
 .vmp-set{display:flex;flex-direction:column;gap:6px;min-width:min(430px,80vw);font-size:13px;color:var(--spice-text,#fff)}
 .vmp-set-row{padding:8px 10px;border-radius:8px;background:rgba(128,128,128,.1);transition:opacity .2s ease}
-.vmp-set-row.dim{opacity:.45}
+.vmp-set-row.dim{opacity:.45;pointer-events:none;user-select:none}
 .vmp-set-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .vmp-set-left{display:flex;align-items:center;gap:8px;min-width:0}
 .vmp-set-name{font-weight:600}
 .vmp-set-q{width:16px;height:16px;flex:none;border-radius:50%;border:1px solid var(--spice-subtext,#b3b3b3);background:none;
   color:var(--spice-subtext,#b3b3b3);font:inherit;font-size:10px;line-height:1;padding:0;cursor:pointer;display:grid;place-items:center;
-  outline:none;transition:background-color .15s ease,color .15s ease}
-.vmp-set-q:hover,.vmp-set-q.on{background:var(--spice-text,#fff);color:var(--spice-main,#121212)}
-.vmp-set-hint{display:none;margin-top:6px;font-size:11px;line-height:1.35;color:var(--spice-subtext,#b3b3b3);max-height:2.7em;overflow:hidden}
-.vmp-set-hint.show{display:block;animation:vmp-set-in .18s ease}
-@keyframes vmp-set-in{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+  outline:none;transition:background-color .18s ease,color .18s ease,transform .24s cubic-bezier(.34,1.56,.64,1),border-color .18s ease}
+.vmp-set-q:hover,.vmp-set-q.on{background:var(--spice-text,#fff);border-color:var(--spice-text,#fff);color:var(--spice-main,#121212);transform:scale(1.08)}
+.vmp-set-hint{display:grid;grid-template-rows:0fr;margin-top:0;opacity:0;transform:translateY(-4px);
+  font-size:11px;line-height:1.35;color:var(--spice-subtext,#b3b3b3);pointer-events:none;
+  transition:grid-template-rows .26s cubic-bezier(.25,1,.5,1),margin-top .26s cubic-bezier(.25,1,.5,1),opacity .2s ease,transform .26s cubic-bezier(.25,1,.5,1)}
+.vmp-set-hint-inner{overflow:hidden;min-height:0}
+.vmp-set-hint.show{grid-template-rows:1fr;margin-top:6px;opacity:1;transform:none;pointer-events:auto}
 .vmp-seg{display:flex;gap:2px;padding:2px;border-radius:99px;background:rgba(128,128,128,.2)}
 .vmp-seg button{border:none;outline:none;background:none;color:inherit;padding:4px 10px;border-radius:99px;font:inherit;font-size:12px;
   cursor:pointer;transition:background-color .15s ease,color .15s ease}
@@ -1419,9 +1870,9 @@ html,body{margin:0;height:100%}
     document.head.appendChild(settingsStyle);
     cleanups.push(() => settingsStyle.remove());
 
-    function setSetting(key, value) {
+    function setSetting(key, value, persist = true) {
       settings[key] = value;
-      saveSettings();
+      if (persist) saveSettings();
       applySettings();
       if (els) render();
     }
@@ -1471,10 +1922,11 @@ html,body{margin:0;height:100%}
           const color = h("input", "vmp-color");
           color.type = "color";
           color.addEventListener("input", () => {
-            setSetting("tintColor", color.value);
-            if (settings.tintMode !== "custom") setSetting("tintMode", "custom");
+            setSetting("tintColor", color.value, false);
+            if (settings.tintMode !== "custom") setSetting("tintMode", "custom", false);
             refresh();
           });
+          color.addEventListener("change", saveSettings);
           ctrl.append(seg, color);
           ctrl._seg = seg;
           ctrl._color = color;
@@ -1501,14 +1953,16 @@ html,body{margin:0;height:100%}
           const out = h("span");
           input.addEventListener("input", () => {
             out.textContent = input.value + def.unit;
-            setSetting(def.key, Number(input.value));
+            setSetting(def.key, Number(input.value), false);
           });
+          input.addEventListener("change", saveSettings);
           ctrl.append(input, out);
           ctrl._input = input;
           ctrl._out = out;
         }
 
-        const hint = h("div", "vmp-set-hint", def.help);
+        const hint = h("div", "vmp-set-hint");
+        hint.appendChild(h("div", "vmp-set-hint-inner", def.help));
         q.addEventListener("click", () => { hint.classList.toggle("show"); q.classList.toggle("on"); });
         head.append(left, ctrl);
         row.append(head, hint);
@@ -1526,9 +1980,13 @@ html,body{margin:0;height:100%}
             ctrl._seg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.v === settings.tintMode));
             ctrl._color.value = settings.tintColor;
             ctrl._color.style.opacity = settings.tintMode === "custom" ? "1" : ".5";
+          } else { ctrl._input.value = v; ctrl._out.textContent = v + def.unit; }
+          if (def.needs) {
+            const off = settings.theme !== def.needs;
+            row.classList.toggle("dim", off);
+            row.inert = off;
+            row.setAttribute("aria-disabled", String(off));
           }
-          else { ctrl._input.value = v; ctrl._out.textContent = v + def.unit; }
-          if (def.needs) row.classList.toggle("dim", settings.theme !== def.needs);
         });
       }
       refresh();
@@ -1539,38 +1997,53 @@ html,body{margin:0;height:100%}
       if (Spicetify.PopupModal && typeof Spicetify.PopupModal.display === "function") {
         Spicetify.PopupModal.display({ title: "Vinyl Mini Player", content: buildSettingsPanel() });
       } else {
-        Spicetify.showNotification("Settings need a newer Spicetify (PopupModal missing)", true);
+        Spicetify.showNotification("Settings need a newer Spicetify", true);
       }
     }
 
-    let menu = null, playbarBtn = null;
-    try {
-      const openItem = new Spicetify.Menu.Item("Open / close mini player", false, () => toggleOpen());
-      const settingsItem = new Spicetify.Menu.Item("Settings…", false, () => openSettings());
-      menu = new Spicetify.Menu.SubMenu("Vinyl Mini Player", [openItem, settingsItem]);
-      menu.register();
-    } catch (err) {
-      console.warn("[vinyl-mini-player] could not add the profile menu entry", err);
-    }
+    let menu = null, playbarBtn = null, menuTimer = null, menuTries = 0;
+    const registerMenu = () => {
+      if (!(Spicetify.React && Spicetify.ReactJSX && Spicetify.ReactJSX.jsx)) {
+        if (++menuTries < 100) menuTimer = setTimeout(registerMenu, 300);
+        return;
+      }
+      try {
+        const openItem = new Spicetify.Menu.Item("Open / close mini player", false, () => toggleOpen());
+        const settingsItem = new Spicetify.Menu.Item("Settings…", false, () => openSettings());
+        menu = new Spicetify.Menu.SubMenu("Vinyl Mini Player", [openItem, settingsItem]);
+        menu.register();
+      } catch (_) {}
+    };
+    registerMenu();
 
     try {
       if (Spicetify.Playbar && Spicetify.Playbar.Button) {
         const ICON = '<svg role="img" height="16" width="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 2a8 8 0 110 16 8 8 0 010-16zm0 5a3 3 0 100 6 3 3 0 000-6z"/></svg>';
         playbarBtn = new Spicetify.Playbar.Button("Vinyl Mini Player settings", ICON, () => openSettings(), false, false, true);
       }
-    } catch (err) {
-      console.warn("[vinyl-mini-player] could not add the player bar button", err);
-    }
+    } catch (_) {}
 
     const teardown = () => {
       cleanups.splice(0).forEach(fn => { try { fn(); } catch (_) {} });
+      clearTimeout(menuTimer);
       if (win && !win.closed) win.close();
       detach();
       try { if (menu) menu.deregister(); } catch (_) {}
       try { if (playbarBtn && playbarBtn.deregister) playbarBtn.deregister(); } catch (_) {}
     };
     window.__vmp = {
-      cleanup: teardown, openSettings, toggle: toggleOpen,
+      version: VERSION, cleanup: teardown, openSettings, toggle: toggleOpen,
+      tune: o => {
+        if (o && o.rippleScale != null) {
+          settings.rippleStrength = Number(o.rippleScale) || 0;
+          if (root) { root.classList.toggle("no-ripple", !(settings.rippleStrength > 0)); applyRipple(); }
+        }
+        return settings.rippleStrength;
+      },
+      liquid: () => {
+        if (!root) return "the player is closed";
+        return { version: VERSION, classes: root.className, ripple: settings.rippleStrength, filterScale: els.dispRipple.getAttribute("scale") };
+      },
       state: () => ({
         isPlaying: (() => { try { return Spicetify.Player.isPlaying(); } catch (e) { return String(e); } })(),
         shownAsPlaying: root ? root.classList.contains("is-playing") : null,
@@ -1578,6 +2051,7 @@ html,body{margin:0;height:100%}
       })
     };
 
+    console.info(`[vinyl-mini-player] v${VERSION} loaded`);
   }
 
   waitForSpicetify();
