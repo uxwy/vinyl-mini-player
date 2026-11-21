@@ -1,143 +1,56 @@
-# `# Vinyl Mini Player` 
+# Changelog
 
-```
-A Spicetify extension that replaces Spotify's Mini Player with its own always-
-on-top window: a spinning vinyl, live synced lyrics, a reorderable queue, and
-four themes.
-```
+## 1.2.0 - 2026-11-20
 
-# `## Features` 
+### New
 
-- `A wide bar that turns into a stacked card as the window becomes squarer or larger. Everything scales with the window.` 
+- **Shuffle status indicator:** A small dot below the shuffle button that smoothly fades in when shuffle is active, including when it's already enabled before opening the mini player, and fades out when disabled.
+- **Afterimage (Beta):** The previous, current, and next lines displayed as a soft stack. For the best experience, resize the player until it switches to the stacked-card layout. Longer lines may be clipped in the flat layout.
+- **Card-flip track change:** The artwork flips like a card while the title and artist glide in. Can be turned off under *Track change animation*.
+- **Queue reshuffle:** Added a reshuffle button to the queue panel.
+- **Long title scrolling:** Long titles now scroll to the end, pause for three seconds, scroll back, and repeat. Can be turned off.
+- **Liquid:** Added a slowly drifting background animation, with its own switch under *Animated background*.
 
-```
-- Remembers its size and position.
-```
+### Changed
 
-- `**Queue panel:** Drag to reorder, click a track to play it now, use the buttons to play it next or remove it, or reshuffle the tracks shown with the shuffle button in the panel header.` 
+- Added a smooth unfold and fade animation when toggling help descriptions in Settings.
+- Minimal is now pure AMOLED black.
+- Removed the Big vinyl option, which clipped past the card.
+- Lyrics now update ten times per second. The fill follows each line's actual duration, or an estimate based on its text, rather than a fixed portion of the gap.
 
-- `**Live synced lyrics:** Displayed under the artist, with a fill that follows the line and long lines that scroll. Sources: Spicy Lyrics, LRCLIB and Spotify. - Default: One line with a fill that follows it.` 
+### Fixed
 
-- `A wide bar that turns into a stacked card as the window gets squarer or larger. Everything scales with the window.` 
+- The shuffle button now updates its active indicator immediately when toggled.
+- Right-to-left lyrics, including Arabic, now fill from right to left.
+- Fixed a queue row turning black while being dragged.
+- Fixed an unwanted window resize after pressing Next.
+- Disabled settings can no longer be clicked or focused.
+- Performance mode now hides lyrics entirely and stops fetching them.
 
-- `Remembers its size and position. You only need to adjust the layout once; you can then move the player anywhere without losing your preferred size. - Right-to-left lyrics such as Arabic fill from right to left.` 
+## 1.1.0 - 2026-10-28
 
-- `Lyrics are hidden in Performance mode.` 
+### New
 
-- `**Track change animation:** The artwork flips like a card while the title and artist glide in.` 
+- Added the Liquid theme: cover art displayed as a rippled background behind a clean vinyl, with minimal controls and a springy hover animation.
+- Added a background ripple strength setting. Performance mode turns the background off.
 
-- `Long titles scroll to the end, pause for three seconds, then scroll back.` 
+### Changed
 
-- `Scroll over the vinyl to change volume.` 
+- Removed the tonearm option.
+- Removed the option to control the vinyl speed.
 
-- `Controls automatically hide when idle.` 
+## 1.0.0 - 2026-10-25
 
-- `Performance mode.` 
+First stable release.
 
-- `**Themes:**` 
-
-- `Classic: Follows your Spotify theme.` 
-
-- `TintedGlass: Album-colored glow with tint and blur controls.` 
-
-- `Minimal: Flat AMOLED black.` 
-
-- `Liquid: Glass that bends the vinyl behind it.` 
-
-# `## Install` 
-
-# `### Marketplace` 
-
-```
-Open Spotify, go to Marketplace → Extensions, search for Vinyl Mini Player and
-click Install.
-```
-
-# `### Manual` 
-
-```
-Copy `vinyl-mini-player.js` into your Spicetify `Extensions` folder (`%appdata%
-\spicetify\Extensions\` on Windows, `~/.config/spicetify/Extensions/` on Linux
-and macOS).
-```
-
-```
-Run:
-```
-
-```
-```bash
-spicetify config extensions vinyl-mini-player.js
-spicetify apply
-```
-```
-
-# `## Usage` 
-
-```
-Click Spotify's own Mini Player button, or open the profile menu and choose
-Vinyl Mini Player → Open / close.
-```
-
-```
-Settings are in the same menu, or behind the gear button in the player bar.
-```
-
-# `## Lyrics` 
-
-```
-| Source       | Key needed | Sent to the service                           |
-| ------------ | ---------- | --------------------------------------------- |
-| Spicy Lyrics | Yes        | The ID of the playing track                   |
-| LRCLIB       | No         | Track title, artist, album and length         |
-| Spotify      | No         | Spotify's own lyrics service, same as the app |
-```
-
-```
-The chosen source is tried first, followed by the others. With the default
-(Auto), LRCLIB can receive a track's title, artist and album when Spicy Lyrics
-has nothing. Pick a single source in Settings if you don't want that.
-```
-
-```
-Spicy Lyrics needs your own publishable key (`sl_pk_...`) from
-developers.spicylyrics.org. Never use a secret `sl_sk_...` key. The source that
-supplied the lyrics is credited under the lyric line.
-```
-
-```
-This project is unofficial and is not affiliated with Spicy Lyrics, LRCLIB or
-Spotify.
-```
-
-# `## Liquid theme` 
-
-```
-The cover art becomes the background, warped by an SVG ripple filter, while the
-vinyl stays clean on top. The background slowly drifts, which can be disabled
-under *Animated background*. *Background ripple* controls the distortion
-strength, and Performance mode disables the background.
-```
-
-# `## Notes` 
-
-```
-The player is a Document Picture-in-Picture window (Chromium). If that is
-unavailable, a pop-up window is used, so allow pop-ups for Spotify.
-```
-
-```
-The window cannot be truly see-through.
-```
-
-```
-If something doesn't load, open Spotify's DevTools (`Ctrl+Shift+I`) and look for
-`[vinyl-mini-player]` messages in the console. The first line shows the version.
-```
-
-# `## Changelog` 
-
-```
-See [CHANGELOG.md](CHANGELOG.md).
-```
-
+- Floating vinyl mini player that opens from Spotify's Mini Player button.
+- Themes: Classic, TintedGlass, and Minimal.
+- Live synced lyrics from Spicy Lyrics, LRCLIB, and Spotify, with a timing offset.
+- Reorderable queue panel.
+- Remembers window size and position.
+- Performance mode, Big vinyl, tonearm, 33 and 45 RPM, scroll-to-change-volume, and auto-hiding controls.
+- The profile menu entry now appears even when Spotify starts slowly.
+- Lyrics that fail to load are retried after a few seconds instead of staying blank, and skipping through songs quickly no longer sends a request for every skipped track.
+- Dragging a slider or color picker now saves once, when released, instead of repeatedly requesting album colors from Spotify.
+- Repeated lyric lines now animate like any other line.
+- Hidden controls can no longer be clicked, and they stay visible while paused.
