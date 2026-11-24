@@ -3,15 +3,13 @@
 A Spicetify extension that replaces Spotify's Mini Player with its own always-on-top window: a spinning vinyl, live synced lyrics, a reorderable queue, and four themes.
 
 
+![Screenshot](preview.png)
+
 
 ## Features
 
 - A wide bar that turns into a stacked card as the window becomes squarer or larger. Everything scales with the window.
-- Remembers its size and position.
 - **Queue panel:** Drag to reorder, click a track to play it now, use the buttons to play it next or remove it, or reshuffle the tracks shown with the shuffle button in the panel header.
-- **Live synced lyrics:** Displayed under the artist, with a fill that follows the line and long lines that scroll. Sources: Spicy Lyrics, LRCLIB and Spotify.
-- Default: One line with a fill that follows it.
-- A wide bar that turns into a stacked card as the window gets squarer or larger. Everything scales with the window.
 - Remembers its size and position. You only need to adjust the layout once; you can then move the player anywhere without losing your preferred size.
 - Right-to-left lyrics such as Arabic fill from right to left.
 - Lyrics are hidden in Performance mode.
@@ -20,11 +18,46 @@ A Spicetify extension that replaces Spotify's Mini Player with its own always-on
 - Scroll over the vinyl to change volume.
 - Controls automatically hide when idle.
 - Performance mode.
-- **Themes:**
-  - Classic: Follows your Spotify theme.
-  - TintedGlass: Album-colored glow with tint and blur controls.
-  - Minimal: Flat AMOLED black.
-  - Liquid: Glass that bends the vinyl behind it.
+
+## Themes
+
+<table>
+  <tr>
+    <td align="center" valign="top" width="50%">
+      <img src="docs/screenshots/player_card_2.png" alt="Classic" width="320"><br>
+      <sub><b>Classic:</b> Follows your Spotify theme</sub>
+    </td>
+    <td align="center" valign="top" width="50%">
+      <img src="docs/screenshots/player_card_1.png" alt="TintedGlass" width="320"><br>
+      <sub><b>TintedGlass:</b> Album-colored glow with tint and blur controls</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" valign="top" width="50%">
+      <img src="docs/screenshots/player_card_3.png" alt="Minimal" width="320"><br>
+      <sub><b>Minimal:</b> Flat AMOLED black</sub>
+    </td>
+    <td align="center" valign="top" width="50%">
+      <img src="docs/screenshots/player_card_4.png" alt="Liquid" width="320"><br>
+      <sub><b>Liquid:</b> Rippled album art background with animated motion</sub>
+    </td>
+  </tr>
+</table>
+
+## Live synced lyrics
+
+<table>
+  <tr>
+    <td align="center" valign="top" width="50%">
+      <img src="docs/screenshots/player_card_lyrics2.png" alt="Image 1" width="320"><br>
+      <sub><b>Default:</b> A single current lyric line with a smooth progress fill and horizontal scroll as the line plays.</sub>
+    </td>
+    <td align="center" valign="top" width="50%">
+      <img src="docs/screenshots/player_card_lyrics1.png" alt="Image 2" width="320"><br>
+      <sub><b>Afterimage:</b> A focused three-line stack that keeps the current lyric sharp while softly blurring the previous and next lines.</sub>
+    </td>
+  </tr>
+</table>
 
 ## Install
 
@@ -62,10 +95,6 @@ The chosen source is tried first, followed by the others. With the default (Auto
 Spicy Lyrics needs your own publishable key (`sl_pk_...`) from developers.spicylyrics.org. Never use a secret `sl_sk_...` key. The source that supplied the lyrics is credited under the lyric line.
 
 This project is unofficial and is not affiliated with Spicy Lyrics, LRCLIB or Spotify.
-
-## Liquid theme
-
-The cover art becomes the background, warped by an SVG ripple filter, while the vinyl stays clean on top. The background slowly drifts, which can be disabled under *Animated background*. *Background ripple* controls the distortion strength, and Performance mode disables the background.
 
 ## Notes
 
