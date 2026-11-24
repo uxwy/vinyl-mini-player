@@ -3,7 +3,7 @@
 A Spicetify extension that replaces Spotify's Mini Player with its own always-on-top window: a spinning vinyl, live synced lyrics, a reorderable queue, and four themes.
 
 
-![Screenshot](preview.png)
+<img src="preview.png" alt="Screenshot" width="380">
 
 
 ## Features
